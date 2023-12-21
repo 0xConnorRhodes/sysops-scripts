@@ -8,9 +8,9 @@ podcasts_dir = '/zstore/newmedia/podcasts/ashelf_podcasts'
 
 import os
 
-podcast_dirs = [i for i in os.listdir(podcasts_dir) if os.path.isdir(os.path.join(podcasts_dir, i))]
-original_dirs = [i for i in podcasts_dirs if i.startswith('_original')]
-rss_dirs = [i for i in podcasts_dirs if not i.startswith('_original')]
+subdirs = [i for i in os.listdir(podcasts_dir) if os.path.isdir(os.path.join(podcasts_dir, i))]
+original_dirs = [i for i in subdirs if i.startswith('_original')]
+rss_dirs = [i for i in subdirs if not i.startswith('_original')]
 
 # remove silence from new downloads
 for podcast in original_dirs:
