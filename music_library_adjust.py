@@ -11,7 +11,7 @@ import os
 # copy contents of music_archive to music_serve overwriting existing files
 os.system(f'cp -r {music_archive}/* {music_serve}/')
 
-for root, dirs, files in os.walk(plex_music_dir):
+for root, dirs, files in os.walk(music_archive):
     for file in files:
         if file.rsplit('.', maxsplit=1)[-1] in ['mp3', 'm4a']:
             filepath = os.path.join(root, file)
