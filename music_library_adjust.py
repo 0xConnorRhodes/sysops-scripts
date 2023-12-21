@@ -17,9 +17,7 @@ for root, dirs, files in os.walk(music_archive):
             filepath = os.path.join(root, file)
             temp_file_path = os.path.join(root, ('q_' + file))
 
-            os.system(
-                    f'ffmpeg -i "{filepath}" -vn -filter:a "volume={vol_adjust}" "{temp_file_path}"'
-            )
+            os.system(f'ffmpeg -i "{filepath}" -vn -filter:a "volume={vol_adjust}" "{temp_file_path}"')
 
             os.remove(filepath)
 
