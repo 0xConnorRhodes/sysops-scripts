@@ -26,8 +26,9 @@ for podcast in original_dirs:
 
     # remove silence
     for file in files:
-        print(os.path.join(podcast, file))
-        os.system(f'auto-editor --no-open -s {silent_speed} "{os.path.join(podcast, file)}"')
+        working_file = os.path.join(podcasts_dir, podcast, file)
+        print(f'auto-editor --no-open -s {silent_speed} "{working_file}"')
+        os.system(f'auto-editor --no-open -s {silent_speed} "{working_file}"')
 
 # reduce volume on all _ALTERED files, move them to the corresponding folder, and clean up
 for podcast in original_dirs:
@@ -36,8 +37,8 @@ for podcast in original_dirs:
 
     for file in files:
         output_file = file.replace('_ALTERED', '')
-        input_path = os.path.join(podcast, file)
-        output_path = os.path.join(output_dir, output_file)
+        input_path = os.path.join(podcasts_dir, podcast, file)
+        output_path = os.path.join(podcasts_dir, output_dir, output_file)
 
         os.system(f'ffmpeg -i "{input_path}" -vn -filter:a "volume={vol_adjust}" "{output_path}"')
 
