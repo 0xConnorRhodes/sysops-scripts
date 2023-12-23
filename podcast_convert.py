@@ -4,7 +4,7 @@
 # CONFIG
 silent_speed = '15'
 vol_adjust = '0.07'
-podcasts_dir = '/zstore/newmedia/podcasts/ashelf_podcasts'
+podcasts_dir = '/zstore/media/podcasts/ashelf_podcasts'
 
 import os
 
