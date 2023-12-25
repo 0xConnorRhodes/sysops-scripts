@@ -27,7 +27,6 @@ for podcast in original_dirs:
     # remove silence
     for file in files:
         working_file = os.path.join(podcasts_dir, podcast, file)
-        print(f'auto-editor --no-open -s {silent_speed} "{working_file}"')
         os.system(f'auto-editor --no-open -s {silent_speed} "{working_file}"')
 
 # reduce volume on all _ALTERED files, move them to the corresponding folder, and clean up
