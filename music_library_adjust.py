@@ -2,8 +2,8 @@
 # Script for transcoding music files and moving them to a server directory.
 
 # CONFIG
-music_library = '/zstore/newmedia/music/music_library/'
-music_serve = '/zstore/newmedia/music/music_serve/'
+music_library = '/zstore/media/music/music_library/'
+music_serve = '/zstore/media/music/music_serve/'
 vol_adjust = '0.03'
 
 import os
