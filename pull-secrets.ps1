@@ -11,11 +11,26 @@ function Get-Secrets {
     $Token
     )
 
-    # TODO: store current directory in $Folder
-    # TODO: parse .gitignore and for-each file in gitignore, try invoke-webrequest ignorring 404s 
+    $project = (Get-Item -Path ".").Name
 
-    # main request
-    # Invoke-WebRequest -Uri ($Url + $Folder + $File + '?' + $Token) -OutFile $File
+    $insideSecrets = $false
+    $secrets = @()
+    foreach ($line in Get-Content .gitignore) {
+        if ($line -eq '# end secrets') {
+            $insideSecrets = $false
+        }
+        if ($insideSecrets) {
+            $secrets += $line
+        }
+        if ($line -eq '# begin secrets') {
+            $insideSecrets = $true
+        }
+    }
+
+    foreach ($file in $secrets) {
+        $request = $Url + $project + '/' + $file + '?' + $Token
+        Invoke-WebRequest -Uri $request -OutFile $file
+    }
 }
 
 if (Test-Path -Path ".vaultsecrets.json") {
