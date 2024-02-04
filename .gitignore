@@ -1,2 +1,5 @@
 test.py
 .vaultsecrets.json
+# begin secrets
+accounts.json
+# end secrets
