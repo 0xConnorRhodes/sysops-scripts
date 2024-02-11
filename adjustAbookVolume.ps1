@@ -9,7 +9,7 @@ Get-ChildItem -Directory | ForEach-Object {
         $fileName = Split-Path -Path $file -Leaf
         $directoryPath = Split-Path -Path $file -Parent
     
-	ffmpeg -i "$file" -an -vcodec copy ($directoryPath + 'cover.jpg')
+	ffmpeg -i "$file" -an -vcodec copy ($directoryPath + '/' + 'cover.jpg')
         ffmpeg -i "$file" -vn -filter:a 'volume=0.07' ($directoryPath + '/07' + $fileName)
 
         Rename-Item -Path $file -NewName ($file + '.original')
