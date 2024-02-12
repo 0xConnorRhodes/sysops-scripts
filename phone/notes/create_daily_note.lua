@@ -1,28 +1,33 @@
 #!/usr/bin/env lua
--- Daily Note Template
-local template_content = "string"
+-- Create daily note from template file on phone
 
--- Calculate the current date
-os.date("*t")
+local template_path = os.getenv("HOME") .. "/Documents/scripts/notes/templates/_template_daily_note.md"
+
 local date = os.date("%y%m%d")
-
--- Search current folder to see if a daily note already exists
 local file_name = "📅 " .. date .. ".md"
-local file_exists = false
-for filename in io.popen('ls', 'r'):lines() do
-    if filename == file_name then
-        file_exists = true
-        break
-    end
+
+-- Function to check if a file exists
+local function file_exists(name)
+    local f = io.open(name, "r")
+    if f~=nil then io.close(f) return true else return false end
 end
 
--- If a daily note exists print 'file exists'
-if file_exists then
-    print('file exists')
+-- Check if the daily note file exists in the current directory
+if file_exists(file_name) then
+    print("file exists")
 else
-    -- If daily doesn't exist, create it and write the content
-    local file = io.open(file_name, "w")
-    file:write(template_content)
-    file:close()
-    print('file created')
+    -- Read the template content if it exists
+    local template_file = io.open(template_path, "r")
+    if not template_file then
+        print("Template file does not exist.")
+        return
+    end
+    local template_content = template_file:read("*a")
+    template_file:close()
+
+    -- Create the daily note file with the content from the template
+    local daily_note_file = io.open(file_name, "w")
+    daily_note_file:write(template_content)
+    daily_note_file:close()
+    print("note created")
 end
