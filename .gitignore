@@ -1,6 +1,7 @@
 .DS_Store
 test.py
 .vaultsecrets.json
+.env
 # begin secrets
 accounts.json
 phone/notes/templates/_template_daily_note.md
