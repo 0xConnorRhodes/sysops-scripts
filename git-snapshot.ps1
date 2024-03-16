@@ -34,15 +34,15 @@ $deletedFiles = ($status.Staged | ? ChangeType -eq 'deleted').Path | % { Remove-
 
 $commitMessage = ""
 if ($deletedFiles) {
-	$commitMessage += "DELETED: " + ($deletedFiles -join ",") + " "
+	$commitMessage += "D: " + ($deletedFiles -join ",") + " "
 }
 
 if ($newFiles) {
-	$commitMessage = $commitMessage +  "ADDED: " + ($newFiles -join ",") + " "
+	$commitMessage = $commitMessage +  "A: " + ($newFiles -join ",") + " "
 }
 
 if ($modifiedFiles) {
-	$commitMessage = $commitMessage + "CHANGED: " + ($modifiedFiles -join ',')
+	$commitMessage = $commitMessage + "M: " + ($modifiedFiles -join ',')
 }
 
 git commit -m "$commitMessage"
