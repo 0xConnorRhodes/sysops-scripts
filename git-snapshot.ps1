@@ -25,11 +25,11 @@ git add .
 
 $status = git status
 
-$newFiles = ($status.Staged | ? ChangeType -eq 'newfile').Path | foreach-object { Remove-LeadingEscapedChar($_) }
+$newFiles = ($status.Staged | ? ChangeType -eq 'newfile').Path | % { Remove-LeadingEscapedChar($_) }
 
-$modifiedFiles = ($status.Staged | ? ChangeType -eq 'modified').Path | ForEach-Object { Remove-LeadingEscapedChar($_) }
+$modifiedFiles = ($status.Staged | ? ChangeType -eq 'modified').Path | % { Remove-LeadingEscapedChar($_) }
 
-$deletedFiles = ($status.Staged | ? ChangeType -eq 'deleted').Path | foreach-object { Remove-LeadingEscapedChar($_) }
+$deletedFiles = ($status.Staged | ? ChangeType -eq 'deleted').Path | % { Remove-LeadingEscapedChar($_) }
 
 
 $commitMessage = ""
