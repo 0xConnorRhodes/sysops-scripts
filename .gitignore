@@ -4,5 +4,6 @@ test.py
 .env
 # begin secrets
 accounts.json
+.sfsToken.json
 phone/notes/templates/_template_daily_note.md
 # end secrets
