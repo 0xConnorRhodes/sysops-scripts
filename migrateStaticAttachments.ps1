@@ -52,3 +52,4 @@ foreach ($fileName in $newAttachmentsMap.Keys) {
 }
 
 # NOTE: must handle the case of the same attachment being attached to multiple notes (or the same note twice) before this script is run
+# TODO: add ping to pushover if there is an error. save error output to log file
