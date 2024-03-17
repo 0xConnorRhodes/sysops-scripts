@@ -11,6 +11,8 @@ foreach ($file in Get-ChildItem $staticFilesDir -File) {
     $existingAttachmentHashes += Get-FileHash $file -Algorithm MD5
 }
 
+# TODO: for each existing attachment, generate secure link to existing attachment, insert into note, and remove local file
+
 $newAttachments = Get-ChildItem $attachmentsDir
 $newAttachmentsMap = @{}
 foreach ($file in $newAttachments) {
@@ -37,9 +39,16 @@ foreach ($fileName in $newAttachmentsMap.Keys) {
             $count += 1
             $newName = $fileName[0] + '-' + $count + '.' + $fileName[1]
         }
+        $newName = $newName -replace ' ', '-'
     }
     else {
         $newName = $fileName -replace ' ', '-'
     }
     $newName
+    # TODO: move the existing file to attachments folder under the new name
+    # TODO: generate secure link to attachment
+    # TODO: replace substring in the relevant note with an embed link to attachment
+    # TODO: if the above is successful, remove the original file
 }
+
+# NOTE: must handle the case of the same attachment being attached to multiple notes (or the same note twice) before this script is run
