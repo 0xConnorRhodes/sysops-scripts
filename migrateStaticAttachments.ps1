@@ -12,6 +12,7 @@ foreach ($file in Get-ChildItem $staticFilesDir -File) {
 }
 
 $newAttachments = Get-ChildItem $attachmentsDir
+$newAttachmentsMap = @{}
 foreach ($file in $newAttachments) {
     if ((Get-FileHash $file -Algorithm MD5).Hash -in $existingAttachmentHashes.Hash) {
         continue
@@ -20,7 +21,25 @@ foreach ($file in $newAttachments) {
     Get-ChildItem -Path $notesDir -Filter *.md -Recurse | ForEach-Object {
         $fileContent = Get-Content $_.FullName
         if ($fileContent -match $file.Name) {
-            Write-Host "Found $($file.Name) in file: $($_.FullName)"
+            $newAttachmentsMap["$($file.Name)"] = $($_.FullName)
         }
     }
+}
+
+$existingAttachments = Get-ChildItem -Recurse -File $staticFilesDir
+foreach ($fileName in $newAttachmentsMap.Keys) {
+    if ($fileName -in $existingAttachments.Name) {
+        $count = 1
+        $fileName = $fileName -split "\.(?=[^.]+$)"
+        $newName = $fileName[0] + '-' + $count + '.' + $fileName[1]
+
+        while ($newName -in $existingAttachments.Name) {
+            $count += 1
+            $newName = $fileName[0] + '-' + $count + '.' + $fileName[1]
+        }
+    }
+    else {
+        $newName = $fileName -replace ' ', '-'
+    }
+    $newName
 }
