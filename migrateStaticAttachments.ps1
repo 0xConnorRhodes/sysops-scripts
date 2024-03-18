@@ -2,9 +2,14 @@
 # Script to move note attachments to my static file server 
 # and embed a secure access link in the original note
 
+$ErrorActionPreference = "Stop"
+
 $notesDir = '/zstore/data/zk_notes/zk_notes'
 $attachmentsDir = '/zstore/data/zk_notes/zk_notes/zattachments'
 $staticFilesDir = '/zstore/static_files/nats'
+$staticServer = Get-Content -Path ".sfsToken.json" | ConvertFrom-Json
+$Url = $staticServer.Url
+$Token = $staticServer.Token
 
 $existingAttachmentHashes = @()
 foreach ($file in Get-ChildItem $staticFilesDir -File) {
@@ -44,11 +49,13 @@ foreach ($fileName in $newAttachmentsMap.Keys) {
     else {
         $newName = $fileName -replace ' ', '-'
     }
-    $newName
-    # TODO: move the existing file to attachments folder under the new name
-    # TODO: generate secure link to attachment
-    # TODO: replace substring in the relevant note with an embed link to attachment
-    # TODO: if the above is successful, remove the original file
+    Move-Item -Path $attachmentsDir/$fileName -Destination $staticFilesDir/$newName
+
+    $attachmentLink = $Url + '/nats/' + $newName + '?' + $Token
+
+    $noteFile = Get-Content $newAttachmentsMap[$fileName]
+
+    $noteFile.Replace("![[$fileName]]", "![]($attachmentLink)") | Set-Content $newAttachmentsMap[$fileName]
 }
 
 # NOTE: must handle the case of the same attachment being attached to multiple notes (or the same note twice) before this script is run
