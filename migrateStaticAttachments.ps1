@@ -16,6 +16,8 @@ foreach ($file in Get-ChildItem $staticFilesDir -File) {
     $existingAttachmentHashes += Get-FileHash $file -Algorithm MD5
 }
 
+# TODO: write function to check for dangling attachments in the zk folder and prune them
+
 # TODO: for each existing attachment, generate secure link to existing attachment, insert into note, and remove local file
 
 $newAttachments = Get-ChildItem $attachmentsDir
