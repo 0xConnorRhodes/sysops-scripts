@@ -18,6 +18,10 @@ foreach ($file in Get-ChildItem $staticFilesDir -File) {
 
 # TODO: write function to check for dangling attachments in the zk folder and prune them
 
+# TODO: add check to remove 'pasted image' and replace with the name of the given note (and to keep the timestamp on the end of it
+
+# TODO: add transformation rules for converted attachments from android
+
 # TODO: for each existing attachment, generate secure link to existing attachment, insert into note, and remove local file
 
 $newAttachments = Get-ChildItem $attachmentsDir
