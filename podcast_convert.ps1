@@ -15,7 +15,7 @@ $inputFiles = gci -Path $inputDir -File -Filter *.mp3 -Recurse |
 
 
 foreach ($file in $inputFiles) {
-    # CALCULATE ARGS
+    # GENERATE ARGS
     $filenameAltered = $file.Name -replace '\.mp3$', '_ALTERED.mp3'
     $filenameFinal = $file.Name -replace '\.mp3$', '_FINAL.mp3'
     $finalFilePath = "$($file.DirectoryName)/$filenameFinal"
