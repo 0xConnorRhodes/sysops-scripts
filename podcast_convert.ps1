@@ -18,4 +18,5 @@ foreach ($file in $newFiles) {
     ffmpeg -i $file -vn -filter:a "volume=$vol_adjust" "$($file.DirectoryName)/$filenameFinal"
     Remove-Item -Path "$($file.DirectoryName)/$filenameAltered"
     Remove-Item -Path $file
+    Rename-Item -Path "$($file.DirectoryName)/$filenameFinal" -NewName $file
 }
