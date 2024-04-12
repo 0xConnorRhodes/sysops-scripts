@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/connor/code/sysops-scripts/.pyvenv/bin/python3
 from datetime import datetime, timedelta
 from jinja2 import Environment, FileSystemLoader
 import os
