@@ -8,10 +8,11 @@ Get-ChildItem -Directory | ForEach-Object {
     foreach ($file in $m4bFiles) {
         $fileName = Split-Path -Path $file -Leaf
         $directoryPath = Split-Path -Path $file -Parent
+	$tempName = $directoryPath + '/q' + $fileName
     
-	ffmpeg -i "$file" -an -vcodec copy ($directoryPath + '/' + 'cover.jpg')
-        ffmpeg -i "$file" -vn -filter:a 'volume=0.07' ($directoryPath + '/07' + $fileName)
+        ffmpeg -i "$file" -vn -filter:a 'volume=0.08' $tempName
 
-        Rename-Item -Path $file -NewName ($file + '.original')
+	Remove-Item -Path $file
+	Rename-Item -Path $tempName -NewName $file
     }
 }
