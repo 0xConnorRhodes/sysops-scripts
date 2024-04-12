@@ -2,6 +2,7 @@
 test.py
 .vaultsecrets.json
 .env
+.pyvenv
 # begin secrets
 accounts.json
 .sfsToken.json
