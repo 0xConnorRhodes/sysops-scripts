@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from jinja2 import Environment, FileSystemLoader
 import os
 
-notes_dir = '/zstore/data/zk_notes/zk_notes'
+notes_dir = '/zssd/notes'
 
 def render_note_content(date_str):
     return template.render(
@@ -13,7 +13,7 @@ def render_note_content(date_str):
     )
 
 def get_note_filepath(date_str):
-    return os.path.join(notes_dir, f"📅 {date_str}.md")
+    return os.path.join(notes_dir, f"📅{date_str}.md")
 
 # Determine path to script, set and load template
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -41,11 +41,11 @@ if not os.path.exists(today_note):
     today_content = render_note_content(today_str)
     with open(today_note, 'w') as file:
         file.write(today_content)
-    print(f"Daily note: 📅 {today_str}.md created")
+    print(f"Daily note: 📅{today_str}.md created")
 
 tomorrow_note = get_note_filepath(tomorrow_str)
 if not os.path.exists(tomorrow_note):
     tomorrow_content = render_note_content(tomorrow_str)
     with open(tomorrow_note, 'w') as file:
         file.write(tomorrow_content)
-    print(f"Daily note: 📅 {tomorrow_str}.md created")
+    print(f"Daily note: 📅{tomorrow_str}.md created")

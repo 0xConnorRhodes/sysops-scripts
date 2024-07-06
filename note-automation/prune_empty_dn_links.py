@@ -3,20 +3,20 @@ import os
 import re
 from datetime import datetime, timedelta
 
-notes_dir = '/zstore/data/zk_notes/zk_notes'
+notes_dir = '/zssd/notes'
 
 today = datetime.now()
 today_str = today.strftime('%y%m%d')
 tomorrow_str = (today + timedelta(days=1)).strftime('%y%m%d')
 d_a_tomorrow_str = (today + timedelta(days=2)).strftime('%y%m%d')
-tomorrow_file = f"📅 {tomorrow_str}.md"
-d_a_tomorrow_file = f"📅 {d_a_tomorrow_str}.md"
+tomorrow_file = f"📅{tomorrow_str}.md"
+d_a_tomorrow_file = f"📅{d_a_tomorrow_str}.md"
 
 for filename in os.listdir(notes_dir):
-    if filename.startswith("📅 "):
+    if filename.startswith("📅"):
         with open(os.path.join(notes_dir, filename), 'r') as file:
             contents = file.read()
-            dates = re.findall(r'\[\[📅 \d{6}\]\]', contents)
+            dates = re.findall(r'\[\[📅\d{6}\]\]', contents)
             for date in dates:
                 linkfile = date.replace("[", "").replace("]", "") + '.md'
                 if linkfile == tomorrow_file or linkfile == d_a_tomorrow_file:
