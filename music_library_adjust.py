@@ -3,7 +3,8 @@
 
 # CONFIG
 music_library = '/zstore/media/music/music_library/music_library/'
-music_serve = '/zstore/media/music/music_serve/'
+#music_serve = '/zstore/media/music/music_serve/'
+music_serve = '/media/music/'
 vol_adjust = '0.03'
 
 import os
