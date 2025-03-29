@@ -1,1 +1,37 @@
 #!/usr/bin/env ruby
+
+require 'fzf'
+
+class Audiobook
+  def initialize
+    @remote_abooks_folder = 'm:/scary/audiobooks/sync/'
+    @local_abooks_folder = File.expand_path('~/storage/music/Audiobooks/')
+    
+    unless Dir.exist?(@local_abooks_folder)
+      puts "Error: Local audiobooks folder does not exist: #{@local_abooks_folder}"
+      exit 1
+    end
+  end
+
+  def build_abooks_list
+    list = `rsync -a --list-only #{@remote_abooks_folder} | grep '^d'`
+    list.split("\n")
+        .map { |line| line[/g_.*$/] } # select the subpattern from g_ onwards, return nil if pattern not present
+        .compact # remove all nil items
+  end
+
+  def select(list)
+    choice = fzf(list).first
+  end
+
+  def download(choice_path)
+    system("rsync", "-rhP", "#{@remote_abooks_folder}/#{choice_path}", "#{@local_abooks_folder}")
+  end
+
+end
+
+abook = Audiobook.new
+
+list = abook.build_abooks_list
+choice = abook.select(list)
+abook.download(choice)
