@@ -23,10 +23,11 @@ class Audiobook
   def select(list)
     choice = fzf(list).first
     exit 1 if choice.nil?
+    choice
   end
 
   def download(choice_path)
-    system("rsync", "-rhP", "#{@remote_abooks_folder}/#{choice_path}", "#{@local_abooks_folder}")
+    system("rsync -rhP \"#{@remote_abooks_folder}#{choice_path}\" \"#{@local_abooks_folder}\"")
   end
 
 end
