@@ -22,6 +22,7 @@ class Audiobook
 
   def select(list)
     choice = fzf(list).first
+    exit 1 if choice.nil?
   end
 
   def download(choice_path)
