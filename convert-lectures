@@ -8,5 +8,5 @@ files.each do |file|
   edited_name = file.gsub(".mp4", "_ALTERED.mp4")
   system("auto-editor --no-open -s 6 \"#{file}\"") unless File.exist?(edited_name)
   File.delete(file)
-  File.rename("#{file}_ALTERED.mp4", file)
+  File.rename(edited_name, file)
 end
