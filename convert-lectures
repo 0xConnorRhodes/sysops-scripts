@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+# script to recursively convert all lecture files in the current folder 
+# using auto-editor to remove silence
+
+files = Dir.glob("**/*.mp4").reject {|i| i.include? "_ALTERED" }
+
+files.each do |file|
+  edited_name = file.gsub(".mp4", "_ALTERED.mp4")
+  system("auto-editor --no-open -s 6 \"#{file}\"") unless File.exist?(edited_name)
+end
