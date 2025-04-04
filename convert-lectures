@@ -2,8 +2,43 @@
 # script to recursively convert all lecture files in the current folder 
 # using auto-editor to remove silence
 
-files = Dir.glob("**/*.mp4").reject {|i| i.include? "_ALTERED" }
+require "find"
 
+def strip_chars(char)
+  dirs = []
+  Find.find(".") { |i| dirs << i if File.directory?(i) && i != '.' }
+  dirs.each do |dir|
+    new_path = dir.gsub(char, "")
+    next if new_path == dir
+    begin
+      File.rename(dir, new_path)
+      puts "Renamed #{dir} -> #{new_path}"
+    rescue => e
+      warn "Could not rename #{dir} to #{new_path}: #{e.message}"
+      exit 1
+    end
+  end
+
+  files = []
+  Find.find(".") { |i| files << i }
+  files.each do |file|
+    new_path = file.gsub(char, "")
+    next if new_path == file
+  
+    begin
+      File.rename(file, new_path)
+      puts "Renamed #{file} -> #{new_path}"
+    rescue => e
+      warn "Could not rename #{file} to #{new_path}: #{e.message}"
+      exit 1
+    end
+  end
+end
+
+bad_chars = ["`", "(", ")"]
+bad_chars.each { |char| strip_chars(char) }
+
+files = Dir.glob("**/*.mp4").reject {|i| i.include? "_ALTERED" }
 files.each do |file|
   edited_name = file.gsub(".mp4", "_ALTERED.mp4")
   system("auto-editor --no-open -s 6 \"#{file}\"") unless File.exist?(edited_name)
