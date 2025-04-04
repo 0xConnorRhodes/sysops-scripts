@@ -42,6 +42,13 @@ files = Dir.glob("**/*.mp4").reject {|i| i.include? "_ALTERED" }
 files.each do |file|
   edited_name = file.gsub(".mp4", "_ALTERED.mp4")
   system("auto-editor --no-open -s 6 \"#{file}\"") unless File.exist?(edited_name)
-  File.delete(file)
+
+  if File.exist?(edited_name)
+    File.delete(file)
+  else
+    puts "#{edited_name} does not exist"
+    exit 1
+  end
+
   File.rename(edited_name, file)
 end
