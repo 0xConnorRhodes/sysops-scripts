@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# find edit
+
+nvim "$(fd -t f . | fzf)"
