@@ -1,0 +1,8 @@
+#!/usr/bin/env zsh
+# wrapper script for `code` command
+
+if [[ -z "$1" ]]; then
+  code .
+else
+  code "$@"
+fi
