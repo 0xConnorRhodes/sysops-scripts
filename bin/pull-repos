@@ -6,6 +6,11 @@ clone_repo() {
 
   if [ ! -d "$dest_dir" ]; then
     git clone "$repo_url" "$dest_dir"
+    # After cloning, check for git-crypt usage
+    if [ -f "$dest_dir/.gitattributes" ] && grep -q 'git-crypt' "$dest_dir/.gitattributes"; then
+      echo "-------"
+      echo "Repository $dest_dir uses git-crypt. Please run 'git-crypt init' there."
+    fi
   else
     echo "Directory $dest_dir already exists, skipping clone."
   fi
@@ -13,6 +18,10 @@ clone_repo() {
 
 code_dir="$HOME/code"
 
+# scripts
 clone_repo "git@github.com:0xConnorRhodes/sysops-scripts.git" "$code_dir/scripts"
 clone_repo "git@github.com:0xConnorRhodes/priv-scripts.git" "$code_dir/scripts/priv"
 clone_repo "git@github.com:0xConnorRhodes/work-scripts.git" "$code_dir/scripts/work"
+
+# infra
+clone_repo "git@github.com:0xConnorRhodes/homelab.git" "$code_dir/infra"
