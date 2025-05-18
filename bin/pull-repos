@@ -12,6 +12,7 @@ clone_repo() {
 }
 
 code_dir="$HOME/code"
+
 clone_repo "git@github.com:0xConnorRhodes/sysops-scripts.git" "$code_dir/scripts"
 clone_repo "git@github.com:0xConnorRhodes/priv-scripts.git" "$code_dir/scripts/priv"
 clone_repo "git@github.com:0xConnorRhodes/work-scripts.git" "$code_dir/scripts/work"
