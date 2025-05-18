@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# pass $host on the command line in the form:
+# curl https://bootstrap.connor.engineer/nix | $host="testvm" bash
+
+mkdir ~/code
+
+nix-shell -p git --command "git clone https://github.com/0xConnorRhodes/nix-forge.git ~/code/nix-forge"
+sed -i 's/url = https:\/\/github.com\/0xConnorRhodes\/nix-forge.git/url = git@github.com:0xConnorRhodes\/nix-forge.git/g' ~/code/nix-forge/.git/config
+
+
+cd ~/code/nix-forge
+
+if [[ $(uname) == "Linux" ]]; then
+  if command -v nixos-version &> /dev/null; then
+    nix-shell -p git --command "sudo nixos-rebuild switch --flake .#$host"
+  else
+    echo "linux non-nixos"
+  fi
+elif [[ $(uname) == "Darwin" ]]; then
+  echo "darwin"
+fi
+
+nix-shell -p chezmoi --command "chezmoi init --apply 0xConnorRhodes"
+sed -i 's/url = https:\/\/github.com\/0xConnorRhodes\/dotfiles.git/url = git@github.com:0xConnorRhodes\/dotfiles.git/g' ~/.local/share/chezmoi/.git/config

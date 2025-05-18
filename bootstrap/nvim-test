@@ -1,0 +1,65 @@
+# script for deploying multiple neovim distributions on Ubuntu for testing
+
+set -e
+
+sudo apt update
+sudo apt upgrade -y
+
+sudo apt install -y \
+	zsh \
+	ruby \
+	ripgrep \
+	fzf \
+	make \
+	just \
+	gcc \
+	git \
+	cmake \
+	magic-wormhole \
+	python3 \
+	python3-pip \
+	npm \
+	cargo
+
+cd /tmp
+git clone -b 'v0.11.1' 'https://github.com/neovim/neovim.git'
+
+cd neovim
+
+make CMAKE_BUILD_TYPE=RelWithDebInfo
+sudo make install
+
+cd $HOME
+mkdir nvim-configs
+cd nvim-configs
+
+git clone "https://github.com/0xConnorRhodes/kickstart.nvim.git" mykickstart
+git clone "https://github.com/LazyVim/starter.git" lazyvim
+git clone "https://github.com/NvChad/starter" nvchad
+git clone "https://github.com/LunarVim/LunarVim.git" lunarvim
+git clone "https://github.com/AstroNvim/template" astro
+
+git clone "https://github.com/linkarzu/dotfiles-latest" linkarzu
+mv linkarzu/neovim/neobean .
+
+rm -rf linkarzu
+rm -rf lazyvim/.git
+rm -rf nvchad/.git
+
+echo 'nvchad:
+	XDG_CONFIG_HOME=$HOME/nvim-configs NVIM_APPNAME=nvchad nvim
+
+lazy:
+	XDG_CONFIG_HOME=$HOME/nvim-configs NVIM_APPNAME=lazyvim nvim
+
+neobean:
+	XDG_CONFIG_HOME=$HOME/nvim-configs NVIM_APPNAME=neobean nvim
+
+lunar:
+	XDG_CONFIG_HOME=$HOME/nvim-configs NVIM_APPNAME=lunarvim nvim
+
+astro:
+	XDG_CONFIG_HOME=$HOME/nvim-configs NVIM_APPNAME=astro nvim
+
+kick:
+	XDG_CONFIG_HOME=$HOME/nvim-configs NVIM_APPNAME=mykickstart nvim' > "$HOME/justfile"
