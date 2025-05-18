@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+
+clone_repo() {
+  repo_url="$1"
+  dest_dir="$2"
+
+  if [ ! -d "$dest_dir" ]; then
+    git clone "$repo_url" "$dest_dir"
+  else
+    echo "Directory $dest_dir already exists, skipping clone."
+  fi
+}
+
+code_dir="$HOME/code"
+clone_repo "git@github.com:0xConnorRhodes/sysops-scripts.git" "$code_dir/scripts"
+clone_repo "git@github.com:0xConnorRhodes/priv-scripts.git" "$code_dir/scripts/priv"
+clone_repo "git@github.com:0xConnorRhodes/work-scripts.git" "$code_dir/scripts/work"
