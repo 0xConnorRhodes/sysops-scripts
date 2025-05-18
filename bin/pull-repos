@@ -9,7 +9,7 @@ clone_repo() {
     # After cloning, check for git-crypt usage
     if [ -f "$dest_dir/.gitattributes" ] && grep -q 'git-crypt' "$dest_dir/.gitattributes"; then
       echo "-------"
-      echo "Repository $dest_dir uses git-crypt. Please run 'git-crypt init' there."
+      echo "Repository $dest_dir uses git-crypt. Please load the decryption key"
     fi
   else
     echo "Directory $dest_dir already exists, skipping clone."
