@@ -3,8 +3,8 @@
 
 require 'dotenv/load'
 Dotenv.load(File.join(File.dirname(__FILE__), '.env'))
-require_relative '../lib/upload_zattachments'
-# require_relative 'lib/upload_nats'
+require_relative '../lib/ruby/upload_zattachments'
+# require_relative 'lib/ruby/upload_nats'
 
 $notes_path = File.expand_path('~/notes')
 
