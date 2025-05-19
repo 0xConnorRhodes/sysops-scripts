@@ -19,7 +19,7 @@ def get_note_filepath(date_str):
 
 # Determine path to script, set and load template
 base_dir = os.path.dirname(os.path.abspath(__file__))
-template_dir = f"{home_dir}/code/notes-templates"
+template_dir = f"{home_dir}/code/scripts/pkm/templates"
 env = Environment(loader=FileSystemLoader(template_dir))
 template = env.get_template('daily_note-template.md.j2')
 
