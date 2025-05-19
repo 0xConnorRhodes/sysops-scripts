@@ -1,4 +1,5 @@
 priv/
+pkm/templates/
 work/
 .DS_Store
 test.py

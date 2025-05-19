@@ -19,9 +19,10 @@ clone_repo() {
 code_dir="$HOME/code"
 
 # scripts
-clone_repo "git@github.com:0xConnorRhodes/sysops-scripts.git" "$code_dir/scripts"
-clone_repo "git@github.com:0xConnorRhodes/priv-scripts.git" "$code_dir/scripts/priv"
-clone_repo "git@github.com:0xConnorRhodes/work-scripts.git" "$code_dir/scripts/work"
+clone_repo 'git@github.com:0xConnorRhodes/sysops-scripts.git' "$code_dir/scripts"
+clone_repo 'git@github.com:0xConnorRhodes/priv-scripts.git' "$code_dir/scripts/priv"
+clone_repo 'git@github.com:0xConnorRhodes/work-scripts.git' "$code_dir/scripts/work"
+clone_repo 'git@github.com:0xConnorRhodes/notes-templates.git' "$code_dir/scripts/pkm/templates"
 
 # infra
 clone_repo "git@github.com:0xConnorRhodes/homelab.git" "$code_dir/infra"
