@@ -4,7 +4,7 @@
 require 'highline'
 require 'date'
 require 'fzf'
-require '../lib/ruby/OOMarkdown'
+require File.expand_path('../lib/ruby/OOMarkdown', __dir__)
 
 NOTES_FOLDER = File.join(File.expand_path('~'), 'notes')
 
