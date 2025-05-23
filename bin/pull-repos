@@ -24,6 +24,9 @@ clone_repo 'git@github.com:0xConnorRhodes/priv-scripts.git' "$code_dir/scripts/p
 clone_repo 'git@github.com:0xConnorRhodes/work-scripts.git' "$code_dir/scripts/work"
 clone_repo 'git@github.com:0xConnorRhodes/notes-templates.git' "$code_dir/scripts/pkm/templates"
 
+# nvim
+clone_repo 'git@github.com:0xConnorRhodes/nvim-config.git' "$HOME/.config/nvim"
+
 # infra
 clone_repo "git@github.com:0xConnorRhodes/homelab.git" "$code_dir/infra"
 clone_repo "git@github.com:0xConnorRhodes/infra-priv.git" "$code_dir/infra/priv"
