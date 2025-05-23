@@ -1,0 +1,30 @@
+#!/usr/bin/env ruby
+
+files = Dir.glob("*.mp4")
+
+if files.empty?
+  abort "Error: no .mp4 files found in #{Dir.pwd}"
+end
+
+if Dir.exist?("output")
+  abort "Error: 'output' directory already exists in #{Dir.pwd}"
+end
+
+Dir.mkdir("output")
+
+puts "Found .mp4 files:"
+files.each { |f| puts "  - #{f}" }
+
+print "Proceed? (y or Enter to proceed, n or c to cancel): "
+answer = STDIN.gets.chomp.downcase
+
+unless answer.empty? || answer == "y"
+  puts "Cancelled."
+  exit 1
+end
+
+files.each do |file|
+  command = "ffmpeg -i \"#{file}\" -vcodec copy -filter:a \"volume=0.5\" output/\"#{file}\""
+  # puts command
+  system(command) or abort "ffmpeg failed on #{file}"
+end
