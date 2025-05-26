@@ -30,3 +30,6 @@ clone_repo 'git@github.com:0xConnorRhodes/nvim-config.git' "$HOME/.config/nvim"
 # infra
 clone_repo "git@github.com:0xConnorRhodes/homelab.git" "$code_dir/infra"
 clone_repo "git@github.com:0xConnorRhodes/infra-priv.git" "$code_dir/infra/priv"
+
+# other
+clone_repo "git@github.com:0xConnorRhodes/vivaldi.git" "$code_dir/vivaldi"
