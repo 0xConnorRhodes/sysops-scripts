@@ -1,0 +1,21 @@
+#!/usr/bin/env sh
+# move existing text file to bakup and create an identical copy in its place
+# useful for moving aside nix symlinks for live editing
+
+if [ $# -ne 1 ]; then
+  echo "Usage: move-aside <file>" >&2
+  exit 1
+fi
+
+file=$1
+bak="${file}.bak"
+
+mv "$file" "$bak" || {
+  echo "Error: could not move $file to $bak" >&2
+  exit 1
+}
+
+cat "$bak" > "$file" || {
+  echo "Error: could not recreate $file from $bak" >&2
+  exit 1
+}
