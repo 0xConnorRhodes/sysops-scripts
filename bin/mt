@@ -6,7 +6,7 @@ require 'date'
 require 'fzf'
 require File.expand_path('../lib/ruby/OOMarkdown', __dir__)
 
-NOTES_FOLDER = File.join(File.expand_path('~'), 'notes')
+NOTES_FOLDER = ENV['NOTES']
 
 note_template = <<-TEMPLATE
 # meta
@@ -16,10 +16,10 @@ note_template = <<-TEMPLATE
 # context
 
 # folks
-- 
+-
 
 # log
-- 
+-
 
 TEMPLATE
 
@@ -51,7 +51,7 @@ class NewMeeting
     end
 
     rendered_template = template.gsub('{{ meetand }}', meetand_link)
-    
+
     if tag_list
       rendered_template.gsub!('{{ tag_list }}', tag_list)
     else
