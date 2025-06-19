@@ -33,3 +33,8 @@ clone_repo "git@github.com:0xConnorRhodes/infra-priv.git" "$code_dir/infra/priv"
 
 # other
 clone_repo "git@github.com:0xConnorRhodes/browser-rice.git" "$code_dir/browser-rice"
+clone_repo "git@github.com:0xConnorRhodes/box-notes-snapshots.git" "$code_dir/notes"
+
+if [ ! -e "$HOME/notes" ]; then
+  ln -s "$code_dir/notes" "$HOME/notes"
+fi
