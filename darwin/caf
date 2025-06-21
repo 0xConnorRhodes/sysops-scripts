@@ -1,0 +1,20 @@
+#!/bin/zsh
+# Encoding: utf-8
+#
+# @raycast.title Toggle Caffeine
+# @raycast.author Connor Rhodes
+# @raycast.description Toggle Caffeine
+# @raycast.mode silent
+#
+# @raycast.schemaVersion 1
+
+
+if screen -ls | grep -q '\.caf'; then
+    # turn it off
+    screen -S caf -X quit
+    echo "Caffeine Off"
+else
+    # turn it on
+    screen -dmS caf caffeinate -d
+    echo "Caffeine On"
+fi
