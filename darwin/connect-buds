@@ -1,0 +1,29 @@
+#!/bin/zsh
+# Encoding: utf-8
+#
+# @raycast.title Connect Buds
+# @raycast.author Connor Rhodes
+# @raycast.description Connect Bluetooth to OnePlus Buds
+# @raycast.mode silent
+#
+# @raycast.schemaVersion 1
+
+device="40-72-18-bd-a3-c7"
+
+# Check if Bluetooth is powered off (0)
+if [[ $(blueutil --power) -eq 0 ]]; then
+  # Turn Bluetooth on
+  blueutil --power 1
+fi
+
+blueutil --connect "$device"
+
+if [[ $(blueutil --is-connected "$device") -eq 1 ]]; then
+  echo "connected"
+else
+  blueutil --connect "$device"
+fi
+
+if [[ $(blueutil --is-connected "$device") -eq 0 ]]; then
+  blueutil --connect "$device"
+fi
