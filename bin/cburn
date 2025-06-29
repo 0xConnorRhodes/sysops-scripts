@@ -1,0 +1,30 @@
+#!/usr/bin/env sh
+
+# Wrapper script for caligula burn utility
+# Usage: cburn <file>
+
+if [ $# -eq 0 ]; then
+    # Use fzf to select an ISO file from current directory
+    file=$(find . -maxdepth 1 -name "*.iso" -type f | sed 's|^\./||' | fzf --prompt="Select ISO file: ")
+
+    # Check if user cancelled selection
+    if [ -z "$file" ]; then
+        echo "No file selected. Exiting."
+        exit 1
+    fi
+else
+    file="$1"
+fi
+
+# Check if file exists
+if [ ! -f "$file" ]; then
+    echo "Error: File '$file' not found"
+    exit 1
+fi
+
+if [[ "$file" == *.iso ]]; then
+    caligula burn -z none -s skip --root always "$file"
+else
+    # For non-.iso files, skip -z none
+    caligula burn -s skip --root always "$file"
+fi
