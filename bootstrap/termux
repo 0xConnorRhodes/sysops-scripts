@@ -9,11 +9,28 @@ yes | pkg upgrade
 pkg add -y \
 	openssh \
 	chezmoi \
-	fish \
 	termux-api \
 	croc \
 	python \
-	ruby
+	ruby \
+        nnn \
+	fish \
+        aria2 \
+        lf \
+        neovim \
+        bat \
+        curl \
+        fd \
+        fzf \
+        inetutils \
+        just \
+        mosh \
+        rsync \
+        ripgrep \
+        screen \
+        tree \
+        unzip \
+        zoxide
 
 python -m pip install \
 	ipython
