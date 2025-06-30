@@ -6,6 +6,19 @@ sleep 5
 
 yes | pkg upgrade
 
-pkg add -y openssh python
+pkg add -y \
+	openssh \
+	chezmoi \
+	fish \
+	termux-api \
+	croc \
+	python \
+	ruby
 
-echo 'set password with password, then run sshd'
+python -m pip install \
+	ipython
+
+gem install \
+	pry
+
+echo 'for ssh set password with password, then run sshd'
