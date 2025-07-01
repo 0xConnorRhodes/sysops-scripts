@@ -10,32 +10,24 @@ pkg add -y \
 	openssh \
 	chezmoi \
 	termux-api \
-	croc \
 	python \
 	ruby \
         nnn \
-	fish \
         aria2 \
-        lf \
-        neovim \
-        bat \
         curl \
         fd \
         fzf \
-        inetutils \
-        just \
         mosh \
         rsync \
         ripgrep \
-        screen \
-        tree \
         unzip \
+        vim \
         zoxide
 
 python -m pip install \
 	ipython
 
-gem install \
-	pry
+#gem install \
+#	pry
 
 echo 'for ssh set password with password, then run sshd'
