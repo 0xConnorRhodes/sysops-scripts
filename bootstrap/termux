@@ -2,17 +2,15 @@
 # run on phone with curl -sSL sfs.connorrhodes.com/bootstrap/termux.sh | bash
 
 # ncurses prompt for mirrors to use
+# choose Rotate then North America
 termux-change-repo
 
 pkg update
 yes | pkg upgrade
 
 pkg add -y \
-	openssh \
 	chezmoi \
 	termux-api \
-	python \
-	ruby \
         nnn \
         aria2 \
         curl \
@@ -21,14 +19,18 @@ pkg add -y \
         mosh \
         rsync \
         ripgrep \
-        unzip \
-        vim \
-        zoxide
+        vim
 
-python -m pip install \
-	ipython
+#python -m pip install \
+#	ipython
 
 #gem install \
 #	pry
 
-echo 'Next, Set Password For SSH with `passwd`'
+termux-setup-storage
+ln -s $HOME/storage/dcim/notes $HOME/notes
+
+chezmoi init --apply https://github.com/0xConnorRhodes/termux-dotfiles.git
+
+#echo ""
+#echo 'Next, Set Password For SSH with `passwd`'
