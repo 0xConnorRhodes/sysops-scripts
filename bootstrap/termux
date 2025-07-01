@@ -10,6 +10,7 @@ yes | pkg upgrade
 
 pkg add -y \
 	chezmoi \
+	git \
 	termux-api \
         nnn \
         aria2 \
