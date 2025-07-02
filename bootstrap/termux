@@ -34,6 +34,10 @@ gem install \
 termux-setup-storage
 ln -s $HOME/storage/dcim/notes $HOME/notes
 
+read -p "chezmoi age key: " user_input
+mkdir -p "$HOME/.local/.secret"
+echo "$user_input" > "$HOME/.local/.secret/age-termux-key.txt"
+
 chezmoi init --apply https://github.com/0xConnorRhodes/termux-dotfiles.git
 
 mkdir $HOME/code
