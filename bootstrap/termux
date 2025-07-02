@@ -43,5 +43,10 @@ git clone 'https://github.com/0xConnorRhodes/sysops-scripts.git' $HOME/code/scri
 git clone 'https://github.com/0xConnorRhodes/ruby-modules.git' $HOME/code/ruby-modules
 git clone 'https://github.com/0xConnorRhodes/food-log.git' $HOME/code/food-log
 
+sed -i 's|url = https://github.com/|url = git@github.com:|g' $HOME/.local/share/chezmoi/.git/config
+sed -i 's|url = https://github.com/|url = git@github.com:|g' $HOME/code/scripts/.git/config
+sed -i 's|url = https://github.com/|url = git@github.com:|g' $HOME/code/ruby-modules/.git/config
+sed -i 's|url = https://github.com/|url = git@github.com:|g' $HOME/code/food-log/.git/config
+
 echo ""
 echo 'Restart and run `sage` to set age key'
