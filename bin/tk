@@ -1,6 +1,5 @@
 #!/usr/bin/env ruby
 
-# TODO: programatically add fzf to $LOAD_PATH
 require "fzf"
 
 scripts_dir = File.expand_path("~/code/scripts/pkm")
