@@ -34,11 +34,6 @@ gem install \
 termux-setup-storage
 ln -s $HOME/storage/dcim/notes $HOME/notes
 
-printf "chezmoi age key: "
-read user_input
-mkdir -p "$HOME/.local/.secret"
-echo "$user_input" > "$HOME/.local/.secret/age-termux-key.txt"
-
 chezmoi init --apply https://github.com/0xConnorRhodes/termux-dotfiles.git
 
 mkdir $HOME/code
@@ -46,5 +41,5 @@ git clone 'https://github.com/0xConnorRhodes/sysops-scripts.git' $HOME/code/scri
 git clone 'https://github.com/0xConnorRhodes/ruby-modules.git' $HOME/code/ruby-modules
 git clone 'https://github.com/0xConnorRhodes/food-log.git' $HOME/code/food-log
 
-#echo ""
-#echo 'Next, Set Password For SSH with `passwd`'
+echo ""
+echo 'Restart and run `sage` to set age key'
