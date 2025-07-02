@@ -31,6 +31,8 @@ pkg add -y \
 gem install \
 	highline
 
+rm /data/data/com.termux/files/usr/etc/motd
+
 termux-setup-storage
 ln -s $HOME/storage/dcim/notes $HOME/notes
 
