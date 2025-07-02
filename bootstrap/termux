@@ -12,6 +12,7 @@ pkg add -y \
 	chezmoi \
 	git \
 	termux-api \
+	ruby \
         nnn \
         aria2 \
         curl \
@@ -20,18 +21,24 @@ pkg add -y \
         mosh \
         rsync \
         ripgrep \
-        vim
+        vim \
+	zoxide \
+	fish
 
 #python -m pip install \
 #	ipython
 
-#gem install \
-#	pry
+gem install \
+	highline
 
 termux-setup-storage
 ln -s $HOME/storage/dcim/notes $HOME/notes
 
 chezmoi init --apply https://github.com/0xConnorRhodes/termux-dotfiles.git
+
+mkdir $HOME/code
+git clone 'https://github.com/0xConnorRhodes/sysops-scripts.git' $HOME/code/scripts
+git clone 'https://github.com/0xConnorRhodes/ruby-modules.git' $HOME/code/ruby-modules
 
 #echo ""
 #echo 'Next, Set Password For SSH with `passwd`'
