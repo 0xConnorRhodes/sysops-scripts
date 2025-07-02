@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run on phone with curl -sSL sfs.connorrhodes.com/bootstrap/termux.sh | bash
+# run on phone with curl -sSL bootstrap.connor.engineer/termux | sh
 
 # ncurses prompt for mirrors to use
 # choose Rotate then North America
@@ -34,7 +34,8 @@ gem install \
 termux-setup-storage
 ln -s $HOME/storage/dcim/notes $HOME/notes
 
-read -p "chezmoi age key: " user_input
+printf "chezmoi age key: "
+read user_input
 mkdir -p "$HOME/.local/.secret"
 echo "$user_input" > "$HOME/.local/.secret/age-termux-key.txt"
 
