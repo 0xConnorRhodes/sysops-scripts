@@ -2,3 +2,7 @@
 
 echo "Prune Podman"
 podman system prune -a --volumes
+
+# deleting and re-adding the vm ensures the disk is sized down after pruning images
+podman machine reset
+podman machine init
