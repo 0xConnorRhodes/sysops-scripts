@@ -1,3 +1,4 @@
 #!/usr/bin/env sh
 
+echo "Prune Podman"
 podman system prune -a --volumes
