@@ -31,6 +31,9 @@ clone_repo 'git@github.com:0xConnorRhodes/nvim-config.git' "$HOME/.config/nvim"
 clone_repo "git@github.com:0xConnorRhodes/homelab.git" "$code_dir/infra"
 clone_repo "git@github.com:0xConnorRhodes/infra-priv.git" "$code_dir/infra/priv"
 
+# custom code modules
+clone_repo "git@github.com:0xConnorRhodes/ruby-modules.git" "$code_dir/ruby-modules"
+
 # other
 clone_repo "git@github.com:0xConnorRhodes/browser-rice.git" "$code_dir/browser-rice"
 clone_repo "git@github.com:0xConnorRhodes/box-notes-snapshots.git" "$code_dir/notes"
