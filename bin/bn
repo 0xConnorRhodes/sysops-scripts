@@ -1,0 +1,104 @@
+#!/usr/bin/env sh
+
+# Script to add bookmarks using buku with editor input
+# Usage: bn
+
+# Create a temporary file for editor input
+TEMP_FILE=$(mktemp)
+
+# Template content for the editor
+cat > "$TEMP_FILE" << 'EOF'
+# Add URL in next line (single line).
+
+# Add TITLE in next line (single line). Leave blank to web fetch, "-" for no title.
+
+# Add comma-separated TAGS in next line (single line).
+
+# Add COMMENTS in next line(s). Leave blank to web fetch, "-" for no comments.
+
+EOF
+
+# Open the editor (uses neovim, cursor on line 2 in insert mode)
+nvim +2 +startinsert "$TEMP_FILE"
+
+# Check if file was saved (has content beyond the template)
+if [ ! -s "$TEMP_FILE" ]; then
+    echo "No content provided. Bookmark not added."
+    rm "$TEMP_FILE"
+    exit 1
+fi
+
+# Process the file to extract variables
+# Remove comment lines and empty lines, then process remaining lines
+PROCESSED_LINES=$(grep -v '^#' "$TEMP_FILE" | grep -v '^$')
+
+# Convert to array-like processing
+LINE_COUNT=0
+URL=""
+TITLE=""
+TAGS=""
+COMMENTS=""
+
+while IFS= read -r line || [ -n "$line" ]; do
+    if [ -z "$line" ]; then
+        continue
+    fi
+
+    LINE_COUNT=$((LINE_COUNT + 1))
+    case $LINE_COUNT in
+        1) URL="$line" ;;
+        2) TITLE="$line" ;;
+        3) TAGS="$line" ;;
+        *)
+            if [ -z "$COMMENTS" ]; then
+                COMMENTS="$line"
+            else
+                COMMENTS="$COMMENTS
+$line"
+            fi
+            ;;
+    esac
+done << EOF
+$PROCESSED_LINES
+EOF
+
+# Validate that we have at least a URL
+if [ -z "$URL" ]; then
+    echo "Error: URL is required"
+    rm "$TEMP_FILE"
+    exit 1
+fi
+
+# Build buku command
+BUKU_CMD="buku -a \"$URL\""
+
+# Add title if provided and not "-"
+if [ -n "$TITLE" ] && [ "$TITLE" != "-" ]; then
+    BUKU_CMD="$BUKU_CMD --title \"$TITLE\""
+fi
+
+# Add tags if provided
+if [ -n "$TAGS" ]; then
+    BUKU_CMD="$BUKU_CMD --tag \"$TAGS\""
+fi
+
+# Add comments if provided and not "-"
+if [ -n "$COMMENTS" ] && [ "$COMMENTS" != "-" ]; then
+    BUKU_CMD="$BUKU_CMD --comment \"$COMMENTS\""
+fi
+
+# Display what will be executed
+echo "Adding bookmark with the following details:"
+echo "URL: $URL"
+echo "Title: ${TITLE:-"(will be fetched)"}"
+echo "Tags: ${TAGS:-"(none)"}"
+echo "Comments: ${COMMENTS:-"(will be fetched)"}"
+echo
+echo "Executing: $BUKU_CMD"
+echo
+
+# Execute the buku command
+eval "$BUKU_CMD"
+
+# Clean up
+rm "$TEMP_FILE"
