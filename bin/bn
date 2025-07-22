@@ -29,37 +29,35 @@ if [ ! -s "$TEMP_FILE" ]; then
 fi
 
 # Process the file to extract variables
-# Remove comment lines and empty lines, then process remaining lines
-PROCESSED_LINES=$(grep -v '^#' "$TEMP_FILE" | grep -v '^$')
+# Read all non-comment lines, preserving empty lines for proper positioning
+ALL_LINES=$(grep -v '^#' "$TEMP_FILE")
 
-# Convert to array-like processing
-LINE_COUNT=0
+# Process lines by position, not by counting non-empty lines
+LINE_NUM=0
 URL=""
 TITLE=""
 TAGS=""
 COMMENTS=""
 
 while IFS= read -r line || [ -n "$line" ]; do
-    if [ -z "$line" ]; then
-        continue
-    fi
-
-    LINE_COUNT=$((LINE_COUNT + 1))
-    case $LINE_COUNT in
+    LINE_NUM=$((LINE_NUM + 1))
+    case $LINE_NUM in
         1) URL="$line" ;;
         2) TITLE="$line" ;;
         3) TAGS="$line" ;;
         *)
-            if [ -z "$COMMENTS" ]; then
-                COMMENTS="$line"
-            else
-                COMMENTS="$COMMENTS
+            if [ $LINE_NUM -gt 3 ] && [ -n "$line" ]; then
+                if [ -z "$COMMENTS" ]; then
+                    COMMENTS="$line"
+                else
+                    COMMENTS="$COMMENTS
 $line"
+                fi
             fi
             ;;
     esac
 done << EOF
-$PROCESSED_LINES
+$ALL_LINES
 EOF
 
 # Validate that we have at least a URL
@@ -99,6 +97,13 @@ echo
 
 # Execute the buku command
 eval "$BUKU_CMD"
+
+# Check if buku command was successful
+if [ $? -eq 0 ]; then
+    echo "Bookmark added successfully!"
+else
+    echo "Error adding bookmark. Please check buku installation and try again."
+fi
 
 # Clean up
 rm "$TEMP_FILE"
