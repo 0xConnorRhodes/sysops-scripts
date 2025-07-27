@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+
+if [ -z "$1" ]; then
+  echo "Usage: $(basename "$0") <file>"
+  exit 1
+fi
+
+basename=$(basename "$1")
+
+# ensure basename does not include file extension
+basename="${basename%.*}"
+
+nix run github:euank/yaml2nix "$1" | alejandra - > "$basename.nix"
