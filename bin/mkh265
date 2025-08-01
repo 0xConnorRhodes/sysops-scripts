@@ -17,6 +17,7 @@ filename_without_ext="${input_file%.*}"
 output_file="${filename_without_ext}.mkv"
 
 if [[ "$(uname)" == "Darwin" ]]; then
+  caffeinate -d &
   open -a "Macs Fan Control"
 fi
 
