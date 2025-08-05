@@ -1,0 +1,37 @@
+#!/usr/bin/env sh
+
+# Check if file argument is provided
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <file>" >&2
+    exit 1
+fi
+
+FILE="$1"
+
+# Check if file exists
+if [ ! -f "$FILE" ]; then
+    echo "Error: File '$FILE' does not exist" >&2
+    exit 1
+fi
+
+# Extract basename and filename without extension
+BASENAME=$(basename "$FILE")
+DIRNAME=$(basename "$FILE" | sed 's/\.[^.]*$//')
+
+# Remote paths
+REMOTE_BASE="/scary/phone/audiobooks/mpods"
+REMOTE_DIR="$REMOTE_BASE/$DIRNAME"
+REMOTE_FILE="$REMOTE_DIR/$BASENAME"
+
+# Create remote directory
+ssh m "mkdir -p '$REMOTE_DIR'"
+
+# Upload file using rsync
+if rsync -v "$FILE" "m:$REMOTE_FILE"; then
+    echo "Upload successful. Deleting local file..."
+    rm "$FILE"
+    echo "Local file deleted."
+else
+    echo "Upload failed. Local file preserved." >&2
+    exit 1
+fi
