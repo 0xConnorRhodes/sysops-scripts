@@ -1,37 +1,67 @@
 #!/usr/bin/env sh
 
-# Check if file argument is provided
+# Check if file/folder argument is provided
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <file>" >&2
+    echo "Usage: $0 <file|folder>" >&2
     exit 1
 fi
 
-FILE="$1"
+# Join all arguments with spaces to handle filenames with spaces
+TARGET="$*"
 
-# Check if file exists
-if [ ! -f "$FILE" ]; then
-    echo "Error: File '$FILE' does not exist" >&2
+# Check if target exists
+if [ ! -e "$TARGET" ]; then
+    echo "Error: '$TARGET' does not exist" >&2
     exit 1
 fi
 
-# Extract basename and filename without extension
-BASENAME=$(basename "$FILE")
-DIRNAME=$(basename "$FILE" | sed 's/\.[^.]*$//')
-
-# Remote paths
+# Remote base path
 REMOTE_BASE="/scary/phone/audiobooks/mpods"
-REMOTE_DIR="$REMOTE_BASE/$DIRNAME"
-REMOTE_FILE="$REMOTE_DIR/$BASENAME"
 
-# Create remote directory
-ssh m "mkdir -p '$REMOTE_DIR'"
+if [ -f "$TARGET" ]; then
+    # Handle file upload
+    echo "Uploading file: $TARGET"
 
-# Upload file using rsync
-if rsync -v "$FILE" "m:$REMOTE_FILE"; then
-    echo "Upload successful. Deleting local file..."
-    rm "$FILE"
-    echo "Local file deleted."
+    # Extract basename and filename without extension
+    BASENAME=$(basename "$TARGET")
+    DIRNAME=$(basename "$TARGET" | sed 's/\.[^.]*$//' | tr ' ' '_')
+
+    # Remote paths for file
+    REMOTE_DIR="$REMOTE_BASE/$DIRNAME"
+    REMOTE_FILE="$REMOTE_DIR/$BASENAME"
+
+    # Create remote directory
+    ssh m "mkdir -p '$REMOTE_DIR'"
+
+    # Upload file using rsync
+    if rsync -v "$TARGET" "m:$REMOTE_FILE"; then
+        echo "Upload successful. Deleting local file..."
+        rm "$TARGET"
+        echo "Local file deleted."
+    else
+        echo "Upload failed. Local file preserved." >&2
+        exit 1
+    fi
+
+elif [ -d "$TARGET" ]; then
+    # Handle folder upload
+    echo "Uploading folder: $TARGET"
+
+    # Extract folder name
+    FOLDER_NAME=$(basename "$TARGET" | tr ' ' '_')
+    REMOTE_FOLDER="$REMOTE_BASE/$FOLDER_NAME"
+
+    # Upload folder using rsync (with trailing slash to upload contents into the directory)
+    if rsync -av "$TARGET/" "m:$REMOTE_FOLDER/"; then
+        echo "Upload successful. Deleting local folder..."
+        rm -rf "$TARGET"
+        echo "Local folder deleted."
+    else
+        echo "Upload failed. Local folder preserved." >&2
+        exit 1
+    fi
+
 else
-    echo "Upload failed. Local file preserved." >&2
+    echo "Error: '$TARGET' is neither a file nor a directory" >&2
     exit 1
 fi
