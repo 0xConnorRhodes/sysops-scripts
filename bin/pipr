@@ -1,26 +1,51 @@
 #!/usr/bin/env bash
 
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <input_file>"
+    echo "Usage: $0 <input_file_or_url>"
     exit 1
 fi
 
-input_file="$1"
+input="$1"
 
-if [ ! -f "$input_file" ]; then
-    echo "Error: File '$input_file' not found"
-    exit 1
+# Check if input is a URL
+if [[ "$input" =~ ^https?:// ]]; then
+    # Handle URL case
+    if [ ! -f "$HOME/.local/bin/wt" ]; then
+        echo "Error: ~/.local/bin/wt not found. Required for URL processing."
+        exit 1
+    fi
+
+    echo -n "Enter output filename: "
+    read user_filename
+    filename_without_ext="${user_filename// /_}"
+
+    if [[ "$(uname)" == "Darwin" ]]; then
+        caffeinate -d &
+        open -a "Macs Fan Control"
+    fi
+
+    # COMMAND for URL
+    wt "$input" | piper --model ~/.local/share/piper-voices/en_US-lessac-high.onnx --output-file "$filename_without_ext.wav"
+
+else
+    # Handle file case (original behavior)
+    input_file="$input"
+
+    if [ ! -f "$input_file" ]; then
+        echo "Error: File '$input_file' not found"
+        exit 1
+    fi
+
+    filename_without_ext="${input_file%.*}"
+    if [[ "$(uname)" == "Darwin" ]]; then
+        caffeinate -d &
+        open -a "Macs Fan Control"
+    fi
+
+    # COMMAND for file
+    cat "$input_file" | piper --model ~/.local/share/piper-voices/en_US-lessac-high.onnx --output-file "$filename_without_ext.wav"
 fi
 
-filename_without_ext="${input_file%.*}"
 if [[ "$(uname)" == "Darwin" ]]; then
-  caffeinate -d &
-  open -a "Macs Fan Control"
-fi
-
-# COMMAND goes here
-cat "$input_file" | piper --model ~/.local/share/piper-voices/en_US-lessac-high.onnx --output-file $filename_without_ext.wav
-
-if [[ "$(uname)" == "Darwin" ]]; then
-  osascript -e 'quit app "Macs Fan Control"'
+    osascript -e 'quit app "Macs Fan Control"'
 fi
