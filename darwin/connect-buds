@@ -8,7 +8,11 @@
 #
 # @raycast.schemaVersion 1
 
-device="40-72-18-bd-a3-c7"
+# get mac address of paired devices with: `blueutil --paired`
+
+#device="40-72-18-bd-a3-c7"
+device="cc-14-bc-94-c7-c9"
+
 
 # Check if Bluetooth is powered off (0)
 if [[ $(blueutil --power) -eq 0 ]]; then
