@@ -1,0 +1,12 @@
+#!/Users/connor.rhodes/.nix-profile/bin/zsh
+
+# Encoding: utf-8
+#
+# @raycast.title Prompter
+# @raycast.author Connor Rhodes
+# @raycast.description LLM Prompt Generator
+# @raycast.mode silent
+#
+# @raycast.schemaVersion 1
+
+wezterm cli spawn --new-window -- /Users/connor.rhodes/.nix-profile/bin/python3 /Users/connor.rhodes/code/prompter/prompter.py
