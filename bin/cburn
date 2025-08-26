@@ -4,8 +4,8 @@
 # Usage: cburn <file>
 
 if [ $# -eq 0 ]; then
-    # Use fzf to select an ISO file from current directory
-    file=$(find . -maxdepth 1 -name "*.iso" -type f | sed 's|^\./||' | fzf --prompt="Select ISO file: ")
+    # Use fzf to select an ISO or ZST file from current directory
+    file=$(find . -maxdepth 1 \( -name "*.iso" -o -name "*.zst" \) -type f | sed 's|^\./||' | fzf --prompt="Select Image File: ")
 
     # Check if user cancelled selection
     if [ -z "$file" ]; then
