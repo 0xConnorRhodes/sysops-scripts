@@ -22,9 +22,22 @@ if [ ! -f "$file" ]; then
     exit 1
 fi
 
+# Determine compression format based on file extension
 if [[ "$file" == *.iso ]]; then
-    caligula burn -z none -s skip --root always "$file"
+    compression="none"
+elif [[ "$file" == *.gz ]]; then
+    compression="gz"
+elif [[ "$file" == *.bz2 ]]; then
+    compression="bz2"
+elif [[ "$file" == *.xz ]]; then
+    compression="xz"
+elif [[ "$file" == *.lz4 ]]; then
+    compression="lz4"
+elif [[ "$file" == *.zst ]]; then
+    compression="zst"
 else
-    # For non-.iso files, skip -z none
-    caligula burn -s skip --root always "$file"
+    # For other files, use auto-detection
+    compression="auto"
 fi
+
+caligula burn -z "$compression" -s skip --root always "$file"
