@@ -1,2 +1,2 @@
 prune-tailnet:
-  doppler run -- /Users/connor.rhodes/code/scripts/prune-tailnet-dups.py
+  doppler run -- ~/code/scripts/prune-tailnet-dups.py
