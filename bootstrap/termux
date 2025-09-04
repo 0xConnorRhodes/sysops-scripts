@@ -23,7 +23,8 @@ pkg add -y \
         ripgrep \
         vim \
 	zoxide \
-	fish
+	fish \
+        neovim
 
 #python -m pip install \
 #	ipython
