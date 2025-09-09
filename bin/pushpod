@@ -16,7 +16,8 @@ if [ ! -e "$TARGET" ]; then
 fi
 
 # Remote base path
-REMOTE_BASE="/scary/phone/audiobooks/mpods"
+#REMOTE_BASE="/scary/phone/audiobooks/mpods"
+REMOTE_BASE="/scary/audiobooks/shelf/casts/articles"
 
 if [ -f "$TARGET" ]; then
     # Handle file upload
