@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -e
+
+if ! git rev-parse --is-inside-work-tree &> /dev/null; then
+    echo "Error: Not a git repository."
+    exit 1
+fi
+
+if git remote get-url origin &> /dev/null; then
+    echo "Remote 'origin' already exists."
+    exit 1
+fi
+
+repo_name=$(basename "$PWD")
+
+echo "Creating private GitHub repository named '$repo_name'..."
+
+gh repo create "$repo_name" --private --source=. --remote=origin --push
+
+if [ $? -eq 0 ]; then
+    echo "✅ Successfully created and pushed to '$repo_name'."
+else
+    echo "❌ Failed to create the GitHub repository."
+    exit 1
+fi
