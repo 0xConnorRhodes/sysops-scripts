@@ -1,0 +1,87 @@
+#!/usr/bin/env sh
+
+# zfscompare - Compare two ZFS datasets
+# Usage: zfscompare <pool1> <dataset>
+# Example: zfscompare twenty 2sort
+
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <pool1> <dataset>"
+    echo "Example: $0 twenty 2sort"
+    echo "This will compare zstore/<dataset> with <pool1>/zstore_bak/<dataset>"
+    exit 1
+fi
+
+pool1="$1"
+dataset="$2"
+
+# Define the two datasets to compare
+dataset1="zstore/$dataset"
+dataset2="$pool1/zstore_bak/$dataset"
+
+echo "Comparing ZFS datasets:"
+echo "Dataset 1: $dataset1"
+echo "Dataset 2: $dataset2"
+echo
+
+# Function to convert size to bytes
+size_to_bytes() {
+    size="$1"
+    # Remove any decimal point and following digits, then extract number and unit
+    number=$(echo "$size" | sed 's/\([0-9]*\)\.\?[0-9]*\([KMGTPE]\?\).*/\1/')
+    unit=$(echo "$size" | sed 's/[0-9]*\.\?[0-9]*\([KMGTPE]\?\).*/\1/')
+
+    case "$unit" in
+        K) echo $((number * 1024)) ;;
+        M) echo $((number * 1024 * 1024)) ;;
+        G) echo $((number * 1024 * 1024 * 1024)) ;;
+        T) echo $((number * 1024 * 1024 * 1024 * 1024)) ;;
+        P) echo $((number * 1024 * 1024 * 1024 * 1024 * 1024)) ;;
+        E) echo $((number * 1024 * 1024 * 1024 * 1024 * 1024 * 1024)) ;;
+        *) echo "$number" ;;  # assume bytes if no unit
+    esac
+}
+
+# Run zfs list for the first dataset and capture USED value
+echo "=== $dataset1 ==="
+dataset1_output=$(zfs list "$dataset1" 2>/dev/null)
+if [ $? -eq 0 ]; then
+    echo "$dataset1_output"
+    dataset1_used=$(echo "$dataset1_output" | awk 'NR==2 {print $2}')
+    echo
+else
+    echo "Error: Dataset $dataset1 not found or not accessible"
+    echo
+    exit 1
+fi
+
+# Run zfs list for the second dataset and capture USED value
+echo "=== $dataset2 ==="
+dataset2_output=$(zfs list "$dataset2" 2>/dev/null)
+if [ $? -eq 0 ]; then
+    echo "$dataset2_output"
+    dataset2_used=$(echo "$dataset2_output" | awk 'NR==2 {print $2}')
+    echo
+else
+    echo "Error: Dataset $dataset2 not found or not accessible"
+    echo
+    exit 1
+fi
+
+# Calculate percentage
+if [ -n "$dataset1_used" ] && [ -n "$dataset2_used" ]; then
+    dataset1_bytes=$(size_to_bytes "$dataset1_used")
+    dataset2_bytes=$(size_to_bytes "$dataset2_used")
+
+    if [ "$dataset1_bytes" -gt 0 ]; then
+        # Calculate percentage using integer arithmetic (multiply by 10000 for 2 decimal places)
+        percentage=$((dataset2_bytes * 10000 / dataset1_bytes))
+        whole=$((percentage / 100))
+        decimal=$((percentage % 100))
+
+        printf "Copy process: %d.%02d%% \n" "$whole" "$decimal"
+    else
+        echo "Error: Cannot calculate percentage - dataset1 size is 0"
+    fi
+else
+    echo "Error: Could not extract USED values from zfs output"
+fi
