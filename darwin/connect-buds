@@ -10,8 +10,8 @@
 
 # get mac address of paired devices with: `blueutil --paired`
 
-#device="40-72-18-bd-a3-c7"
-device="cc-14-bc-94-c7-c9"
+device="40-72-18-bd-a3-c7" # oneplus
+#device="cc-14-bc-94-c7-c9" # edifier
 
 
 # Check if Bluetooth is powered off (0)
