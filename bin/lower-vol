@@ -24,7 +24,7 @@ unless answer.empty? || answer == "y"
 end
 
 files.each do |file|
-  command = "ffmpeg -i \"#{file}\" -vcodec copy -filter:a \"volume=0.5\" output/\"#{file}\""
+  command = "ffmpeg -i \"#{file}\" -vcodec copy -filter:a \"volume=0.4\" output/\"#{file}\""
   # puts command
   system(command) or abort "ffmpeg failed on #{file}"
 end
