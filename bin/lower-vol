@@ -1,9 +1,9 @@
 #!/usr/bin/env ruby
 
-files = Dir.glob("*.mp4")
+files = Dir.glob("*.{mp4,m4b}")
 
 if files.empty?
-  abort "Error: no .mp4 files found in #{Dir.pwd}"
+  abort "Error: no .mp4 or .m4b files found in #{Dir.pwd}"
 end
 
 if Dir.exist?("output")
@@ -12,7 +12,7 @@ end
 
 Dir.mkdir("output")
 
-puts "Found .mp4 files:"
+puts "Found media files:"
 files.each { |f| puts "  - #{f}" }
 
 print "Proceed? (y or Enter to proceed, n or c to cancel): "
