@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 
+# Function to detect audio codec
+get_audio_codec() {
+    local input_file="$1"
+    ffprobe -v quiet -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 "$input_file" 2>/dev/null
+}
+
 # Function to convert a single file
 convert_file() {
     local input_file="$1"
     local output_dir="$2"
+    local reencode_opus="$3"
 
     if [ ! -f "$input_file" ]; then
         echo "Error: File '$input_file' not found"
@@ -18,11 +25,53 @@ convert_file() {
     # Create output path with same extension as input
     output_file="${output_dir}/${filename_without_ext}.${extension}"
 
-    echo "Converting: $input_file -> $output_file"
-    ffmpeg -i "$input_file" -c:v libx265 -c:a libopus "$output_file"
+    # Determine audio codec settings
+    if [ "$reencode_opus" = "true" ]; then
+        current_audio_codec=$(get_audio_codec "$input_file")
+        if [ "$current_audio_codec" = "opus" ]; then
+            audio_setting="-c:a copy"
+            echo "Converting: $input_file -> $output_file (keeping existing Opus audio)"
+        else
+            audio_setting="-c:a libopus"
+            echo "Converting: $input_file -> $output_file (reencoding audio to Opus)"
+        fi
+    else
+        audio_setting="-c:a copy"
+        echo "Converting: $input_file -> $output_file (copying audio)"
+    fi
+
+    ffmpeg -i "$input_file" -c:v libx265 $audio_setting "$output_file"
 }
 
-# Check if an argument was provided (single file mode)
+# Parse command line options
+reencode_opus=false
+positional_args=()
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --opus)
+            reencode_opus=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 [--opus] [input_file]"
+            echo "  With no file argument: Converts all .mp4 and .mkv files in current directory"
+            echo "  With one file argument: Converts the specified video file"
+            echo "  --opus: Reencode audio to Opus (default: copy existing audio)"
+            echo "  Converts video to H.265/HEVC"
+            exit 0
+            ;;
+        *)
+            positional_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Restore positional parameters
+set -- "${positional_args[@]}"
+
+# Check if a file argument was provided (single file mode)
 if [ $# -eq 1 ]; then
     input_file="$1"
 
@@ -43,7 +92,22 @@ if [ $# -eq 1 ]; then
         open -a "Macs Fan Control"
     fi
 
-    ffmpeg -i "$input_file" -c:v libx265 -c:a libopus "$output_file"
+    # Determine audio codec settings for single file mode
+    if [ "$reencode_opus" = "true" ]; then
+        current_audio_codec=$(get_audio_codec "$input_file")
+        if [ "$current_audio_codec" = "opus" ]; then
+            audio_setting="-c:a copy"
+            echo "Converting: $input_file -> $output_file (keeping existing Opus audio)"
+        else
+            audio_setting="-c:a libopus"
+            echo "Converting: $input_file -> $output_file (reencoding audio to Opus)"
+        fi
+    else
+        audio_setting="-c:a copy"
+        echo "Converting: $input_file -> $output_file (copying audio)"
+    fi
+
+    ffmpeg -i "$input_file" -c:v libx265 $audio_setting "$output_file"
 
     if [[ "$(uname)" == "Darwin" ]]; then
         osascript -e 'quit app "Macs Fan Control"'
@@ -104,7 +168,7 @@ if [ $# -eq 0 ]; then
     # Convert each file
     echo "Starting conversion of ${#video_files[@]} files..."
     for file in "${video_files[@]}"; do
-        convert_file "$file" "$output_dir"
+        convert_file "$file" "$output_dir" "$reencode_opus"
     done
 
     # Stop macOS-specific power management
@@ -117,9 +181,10 @@ if [ $# -eq 0 ]; then
     exit 0
 fi
 
-# If more than one argument is provided, show usage
-echo "Usage: $0 [input_file]"
-echo "  With no arguments: Converts all .mp4 and .mkv files in current directory"
-echo "  With one argument: Converts the specified video file"
-echo "  Converts video to H.265/HEVC with Opus audio"
+# If we reach here, it means too many arguments or invalid usage
+echo "Usage: $0 [--opus] [input_file]"
+echo "  With no file argument: Converts all .mp4 and .mkv files in current directory"
+echo "  With one file argument: Converts the specified video file"
+echo "  --opus: Reencode audio to Opus (default: copy existing audio)"
+echo "  Converts video to H.265/HEVC"
 exit 1
