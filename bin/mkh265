@@ -1,28 +1,125 @@
 #!/usr/bin/env bash
 
+# Function to convert a single file
+convert_file() {
+    local input_file="$1"
+    local output_dir="$2"
+
+    if [ ! -f "$input_file" ]; then
+        echo "Error: File '$input_file' not found"
+        return 1
+    fi
+
+    # Get filename and extension
+    filename=$(basename "$input_file")
+    filename_without_ext="${filename%.*}"
+    extension="${filename##*.}"
+
+    # Create output path with same extension as input
+    output_file="${output_dir}/${filename_without_ext}.${extension}"
+
+    echo "Converting: $input_file -> $output_file"
+    ffmpeg -i "$input_file" -c:v libx265 -c:a libopus "$output_file"
+}
+
+# Check if an argument was provided (single file mode)
+if [ $# -eq 1 ]; then
+    input_file="$1"
+
+    if [ ! -f "$input_file" ]; then
+        echo "Error: File '$input_file' not found"
+        exit 1
+    fi
+
+    # Get filename and extension for single file mode
+    filename=$(basename "$input_file")
+    filename_without_ext="${filename%.*}"
+    extension="${filename##*.}"
+    output_file="${filename_without_ext}.${extension}"
+
+    if [[ "$(uname)" == "Darwin" ]]; then
+        caffeinate -d &
+        caffeine_pid=$!
+        open -a "Macs Fan Control"
+    fi
+
+    ffmpeg -i "$input_file" -c:v libx265 -c:a libopus "$output_file"
+
+    if [[ "$(uname)" == "Darwin" ]]; then
+        osascript -e 'quit app "Macs Fan Control"'
+        kill $caffeine_pid 2>/dev/null
+    fi
+
+    exit 0
+fi
+
+# Directory mode - no arguments provided
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <input_file>"
-    echo "Converts video file to H.265/HEVC with Opus audio and .mkv extension"
-    exit 1
+    echo "Scanning current directory for video files..."
+
+    # Find .mp4 and .mkv files in current directory only (not subdirectories)
+    files=(*.mp4 *.mkv)
+
+    # Filter out patterns that don't match actual files
+    video_files=()
+    for file in "${files[@]}"; do
+        if [ -f "$file" ]; then
+            video_files+=("$file")
+        fi
+    done
+
+    # Check if any video files were found
+    if [ ${#video_files[@]} -eq 0 ]; then
+        echo "No .mp4 or .mkv files found in the current directory."
+        exit 0
+    fi
+
+    echo "Found the following video files:"
+    for file in "${video_files[@]}"; do
+        echo "  - $file"
+    done
+
+    echo
+    read -p "Do you want to proceed with converting these files? (y/N): " response
+
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+        echo "Operation cancelled."
+        exit 0
+    fi
+
+    # Create output directory
+    output_dir="output"
+    if [ ! -d "$output_dir" ]; then
+        echo "Creating output directory: $output_dir"
+        mkdir -p "$output_dir"
+    fi
+
+    # Start macOS-specific power management
+    if [[ "$(uname)" == "Darwin" ]]; then
+        caffeinate -d &
+        caffeine_pid=$!
+        open -a "Macs Fan Control"
+    fi
+
+    # Convert each file
+    echo "Starting conversion of ${#video_files[@]} files..."
+    for file in "${video_files[@]}"; do
+        convert_file "$file" "$output_dir"
+    done
+
+    # Stop macOS-specific power management
+    if [[ "$(uname)" == "Darwin" ]]; then
+        osascript -e 'quit app "Macs Fan Control"'
+        kill $caffeine_pid 2>/dev/null
+    fi
+
+    echo "Conversion complete! Output files are in the '$output_dir' directory."
+    exit 0
 fi
 
-input_file="$1"
-
-if [ ! -f "$input_file" ]; then
-    echo "Error: File '$input_file' not found"
-    exit 1
-fi
-
-filename_without_ext="${input_file%.*}"
-output_file="${filename_without_ext}.mkv"
-
-if [[ "$(uname)" == "Darwin" ]]; then
-  caffeinate -d &
-  open -a "Macs Fan Control"
-fi
-
-ffmpeg -i "$input_file" -c:v libx265 -c:a libopus "$output_file"
-
-if [[ "$(uname)" == "Darwin" ]]; then
-  osascript -e 'quit app "Macs Fan Control"'
-fi
+# If more than one argument is provided, show usage
+echo "Usage: $0 [input_file]"
+echo "  With no arguments: Converts all .mp4 and .mkv files in current directory"
+echo "  With one argument: Converts the specified video file"
+echo "  Converts video to H.265/HEVC with Opus audio"
+exit 1
