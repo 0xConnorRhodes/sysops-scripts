@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+
+set -e
+
+cd ~/code/food-log
+uv run main.py
