@@ -24,6 +24,9 @@ pkg add -y \
         vim \
 	zoxide \
 	fish \
+        lf \
+        uv \
+        screen \
         neovim
 
 #python -m pip install \
