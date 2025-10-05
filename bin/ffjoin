@@ -4,6 +4,7 @@ import os
 import sys
 import subprocess
 import glob
+import re
 from pathlib import Path
 
 SUPPORTED_EXTENSIONS = ['.mp4', '.mkv', '.mp3']
@@ -39,7 +40,17 @@ def get_output_filename(files):
     first_file = files[0]
     base_name = first_file.stem
     extension = first_file.suffix
-    return f"{base_name}_joined{extension}"
+
+    # Remove trailing numbers and their preceding separators
+    # Pattern matches: optional separator (_ or - or space) followed by one or more digits at the end
+    pattern = r'[_\-\s]\d+$'
+    cleaned_base = re.sub(pattern, '', base_name)
+
+    # If the entire base name was just a number, keep the original
+    if not cleaned_base:
+        cleaned_base = base_name
+
+    return f"{cleaned_base}_joined{extension}"
 
 def create_file_list(files):
     file_list_path = "file_list.txt"
@@ -65,14 +76,17 @@ def join_files_with_ffmpeg(files, output_filename):
         ]
 
         print(f"\nRunning ffmpeg command: {' '.join(cmd)}")
+        print("FFmpeg output:")
+        print("-" * 40)
 
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, check=True)
 
-        print(f"\nSuccessfully created: {output_filename}")
+        print("-" * 40)
+        print(f"Successfully created: {output_filename}")
 
     except subprocess.CalledProcessError as e:
         print(f"\nError running ffmpeg: {e}")
-        print(f"FFmpeg stderr: {e.stderr}")
+        print("Please check the ffmpeg output above for details.")
         sys.exit(1)
     except FileNotFoundError:
         print("\nError: ffmpeg not found. Please install ffmpeg and ensure it's in your PATH.")
