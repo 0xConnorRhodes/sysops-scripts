@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import subprocess
+import glob
+from pathlib import Path
+
+SUPPORTED_EXTENSIONS = ['.mp4', '.mkv', '.mp3']
+
+def find_media_files():
+    media_files = []
+    current_dir = Path('.')
+
+    for extension in SUPPORTED_EXTENSIONS:
+        pattern = f"*{extension}"
+        files = list(current_dir.glob(pattern))
+        media_files.extend(files)
+
+    media_files.sort(key=lambda x: x.name.lower())
+
+    return media_files
+
+def check_extension_consistency(files):
+    if not files:
+        return True
+
+    extensions = set(file.suffix.lower() for file in files)
+
+    if len(extensions) > 1:
+        return False
+
+    return True
+
+def get_output_filename(files):
+    if not files:
+        return "output.mp4"
+
+    first_file = files[0]
+    base_name = first_file.stem
+    extension = first_file.suffix
+    return f"{base_name}_joined{extension}"
+
+def create_file_list(files):
+    file_list_path = "file_list.txt"
+
+    with open(file_list_path, 'w') as f:
+        for file in files:
+            escaped_name = str(file).replace("'", "'\"'\"'").replace("\\", "\\\\")
+            f.write(f"file '{escaped_name}'\n")
+
+    return file_list_path
+
+def join_files_with_ffmpeg(files, output_filename):
+    file_list_path = create_file_list(files)
+
+    try:
+        cmd = [
+            'ffmpeg',
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', file_list_path,
+            '-c', 'copy',
+            output_filename
+        ]
+
+        print(f"\nRunning ffmpeg command: {' '.join(cmd)}")
+
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+        print(f"\nSuccessfully created: {output_filename}")
+
+    except subprocess.CalledProcessError as e:
+        print(f"\nError running ffmpeg: {e}")
+        print(f"FFmpeg stderr: {e.stderr}")
+        sys.exit(1)
+    except FileNotFoundError:
+        print("\nError: ffmpeg not found. Please install ffmpeg and ensure it's in your PATH.")
+        sys.exit(1)
+    finally:
+        if os.path.exists(file_list_path):
+            os.remove(file_list_path)
+
+def main():
+    print("Media File Joiner")
+    print("=" * 50)
+
+    media_files = find_media_files()
+
+    if not media_files:
+        print("No supported media files found in the current directory.")
+        print(f"Supported extensions: {', '.join(SUPPORTED_EXTENSIONS)}")
+        sys.exit(0)
+
+    if not check_extension_consistency(media_files):
+        print("Error: Multiple file extensions detected in the directory!")
+        extensions_found = set(file.suffix.lower() for file in media_files)
+        print(f"Extensions found: {', '.join(extensions_found)}")
+        print("Please ensure all files have the same extension before proceeding.")
+        sys.exit(1)
+
+    print(f"\nFound {len(media_files)} media files:")
+    for i, file in enumerate(media_files, 1):
+        print(f"  {i}. {file.name}")
+
+    output_filename = get_output_filename(media_files)
+    print(f"\nOutput file will be: {output_filename}")
+
+    if os.path.exists(output_filename):
+        print(f"\nWarning: Output file '{output_filename}' already exists!")
+        overwrite = input("Do you want to overwrite it? (y/N): ").strip().lower()
+        if overwrite not in ['y', 'yes']:
+            print("Operation cancelled.")
+            sys.exit(0)
+
+    print(f"\nThis will join {len(media_files)} files into '{output_filename}' without re-encoding.")
+    proceed = input("Do you want to proceed? (y/N): ").strip().lower()
+
+    if proceed not in ['y', 'yes']:
+        print("Operation cancelled.")
+        sys.exit(0)
+
+    print("\nStarting file joining process...")
+    join_files_with_ffmpeg(media_files, output_filename)
+
+    print(f"\nFile joining completed successfully!")
+    print(f"Output: {output_filename}")
+
+if __name__ == "__main__":
+    main()
