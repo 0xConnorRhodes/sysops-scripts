@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 
 if [ $# -eq 0 ]; then
-    printf "Enter filename (without .mp4 extension): "
+    printf "Filename: "
     read -r filename
 else
     filename="$1"
