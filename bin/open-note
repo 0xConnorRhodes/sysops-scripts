@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+
+# Directory to search for notes
+NOTES_DIR="$HOME/code/notes"
+
+note_file=$(fd -t f -e md -e txt . "$NOTES_DIR" | \
+    sed "s|^$NOTES_DIR/||" | fzf)
+
+if [ -z "$note_file" ]; then
+    echo "No file selected"
+    exit 0
+fi
+
+full_path="$NOTES_DIR/$note_file"
+code "$full_path"
