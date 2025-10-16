@@ -9,4 +9,4 @@
 #
 # @raycast.schemaVersion 1
 
-wezterm cli spawn --new-window -- /Users/connor.rhodes/code/prompter/.venv/bin/python3 /Users/connor.rhodes/code/prompter/main.py > /dev/null
+wezterm cli spawn --new-window --cwd "/Users/connor.rhodes/code/prompter" -- uv run main.py > /dev/null
