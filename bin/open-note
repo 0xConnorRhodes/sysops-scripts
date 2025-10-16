@@ -1,6 +1,14 @@
 #!/usr/bin/env sh
 
-# Directory to search for notes
+# Encoding: utf-8
+#
+# @raycast.title Open Note
+# @raycast.author Connor Rhodes
+# @raycast.description open a note in $EDITOR
+# @raycast.mode silent
+#
+# @raycast.schemaVersion 1
+
 NOTES_DIR="$HOME/code/notes"
 
 note_file=$(fd -t f -e md -e txt . "$NOTES_DIR" | \
