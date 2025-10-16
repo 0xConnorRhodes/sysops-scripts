@@ -9,5 +9,5 @@
 #
 # @raycast.schemaVersion 1
 
-wezterm cli spawn --new-window -- /Users/connor.rhodes/code/scripts/bin/open-note
+wezterm cli spawn --new-window -- /Users/connor.rhodes/code/scripts/bin/on
 
