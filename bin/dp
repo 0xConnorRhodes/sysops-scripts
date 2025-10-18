@@ -1,0 +1,23 @@
+#!/bin/sh
+
+REMOTE_SRC_DIR="m:/scary/files/drop"
+LOCAL_DEST_DIR="."
+
+set -e
+
+# Parse the remote source string into host and directory components
+REMOTE_HOST=$(echo "$REMOTE_SRC_DIR" | cut -d: -f1)
+REMOTE_DIR=$(echo "$REMOTE_SRC_DIR" | cut -d: -f2-)
+
+
+NEWEST_FILENAME=$(ssh "$REMOTE_HOST" "ls -t1 '$REMOTE_DIR' | head -n 1")
+
+if [ -z "$NEWEST_FILENAME" ]; then
+  echo "No files found in remote directory." >&2
+  exit 1
+fi
+
+REMOTE_FILE_PATH="$REMOTE_DIR/$NEWEST_FILENAME"
+
+
+rsync -av --progress --remove-source-files "$REMOTE_HOST:$REMOTE_FILE_PATH" "$LOCAL_DEST_DIR/"
