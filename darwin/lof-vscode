@@ -15,6 +15,24 @@ on run argv
     set excludeWindowName to item 1 of argv
     try
         tell application "Visual Studio Code"
+            -- Check if VS Code is already frontmost
+            if frontmost then
+                -- Check if a non-notes window is currently focused
+                tell application "System Events"
+                    tell application process "Code"
+                        set frontWindow to front window
+                        if exists frontWindow then
+                            if name of frontWindow is not equal to excludeWindowName then
+                                -- A non-notes window is focused, minimize it
+                                click button 3 of frontWindow
+                                return
+                            end if
+                        end if
+                    end tell
+                end tell
+            end if
+
+            -- Either VS Code is not frontmost or notes window is the front window
             activate
         end tell
 
@@ -46,4 +64,4 @@ on run argv
         do shell script "$HOME/.nix-profile/bin/code"
     end try
 end run
-' "$WINDOW_NAME" > /dev/null
+' "$WINDOW_NAME"
