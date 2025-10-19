@@ -1,0 +1,145 @@
+#!/usr/bin/env -S uv run --script
+"""
+Script to search for markdown files containing 'fp' headers and generate wikilinks.
+First processes existing fp.md to delete files marked with checked checkboxes.
+
+SPEC:
+- read the file ~/code/notes/fp.md. for any lines beginning with '- [x] [[df/' remove the linked file on disk.
+- after that, search all *.md files in ~/code/notes/df. for any that contain a header called "fp" add a wikilink to that file in fp.md
+- the format of the line added should be the following. If the file is ~/code/notes/df/123.md, the line added should be: "- [ ] [[df/123]]" Note that the ".md" file extension is not added to the wikilink
+- the script should overwrite the existing contents of the fp.md note with the newly generated contents per above.
+"""
+
+import os
+import re
+import glob
+from pathlib import Path
+
+def process_existing_fp_file(fp_file_path, notes_dir):
+    """
+    Read existing fp.md file and delete files that correspond to checked checkboxes.
+    Returns list of files that were deleted.
+    """
+    if not os.path.exists(fp_file_path):
+        return []
+
+    deleted_files = []
+
+    try:
+        with open(fp_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Pattern to match checked checkbox lines with wikilinks
+        # Matches: - [x] [[df/filename]]
+        checked_pattern = re.compile(r'^- \[x\] \[\[df/([^\]]+)\]\]', re.MULTILINE)
+
+        matches = checked_pattern.findall(content)
+
+        for filename in matches:
+            # Construct full path to the file
+            file_path = os.path.join(notes_dir, "df", f"{filename}.md")
+
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    deleted_files.append(file_path)
+                    print(f"Deleted: {file_path}")
+                except OSError as e:
+                    print(f"Error deleting {file_path}: {e}")
+            else:
+                print(f"File not found (skipping): {file_path}")
+
+    except (IOError, UnicodeDecodeError) as e:
+        print(f"Warning: Could not read {fp_file_path}: {e}")
+
+    return deleted_files
+
+def find_fp_headers(directory):
+    """
+    Search for *.md files in the given directory that contain 'fp' headers.
+    Returns a list of file paths that contain fp headers.
+    """
+    md_files = glob.glob(os.path.join(directory, "*.md"))
+    fp_files = []
+
+    # Regex pattern to match markdown headers containing 'fp'
+    # Matches # fp, ## fp, ### fp, etc. (case insensitive)
+    header_pattern = re.compile(r'^#+\s*fp\s*$', re.IGNORECASE | re.MULTILINE)
+
+    for file_path in md_files:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                if header_pattern.search(content):
+                    fp_files.append(file_path)
+        except (IOError, UnicodeDecodeError) as e:
+            print(f"Warning: Could not read {file_path}: {e}")
+
+    return fp_files
+
+def generate_wikilinks(fp_files, base_dir):
+    """
+    Generate wikilinks for the found files.
+    Convert absolute paths to relative wikilinks.
+    """
+    wikilinks = []
+    base_path = Path(base_dir)
+
+    for file_path in fp_files:
+        file_path_obj = Path(file_path)
+        # Get relative path from base directory
+        try:
+            rel_path = file_path_obj.relative_to(base_path.parent)
+            # Remove .md extension and create wikilink
+            wikilink_path = str(rel_path).replace('.md', '')
+            wikilink = f"[[{wikilink_path}]]"
+            wikilinks.append(wikilink)
+        except ValueError:
+            # If file is not relative to base path, use filename only
+            filename = file_path_obj.stem
+            wikilink = f"[[df/{filename}]]"
+            wikilinks.append(wikilink)
+
+    return wikilinks
+
+def main():
+    # Define paths
+    notes_dir = os.path.expanduser("~/code/notes")
+    search_dir = os.path.join(notes_dir, "df")
+    output_file = os.path.join(notes_dir, "fp.md")
+
+    # Check if search directory exists
+    if not os.path.exists(search_dir):
+        print(f"Error: Directory {search_dir} does not exist")
+        return
+
+    # First, process existing fp.md file and delete checked items
+    deleted_files = process_existing_fp_file(output_file, notes_dir)
+
+    if deleted_files:
+        print(f"Deleted {len(deleted_files)} files based on checked checkboxes")
+
+    # Find files with fp headers
+    fp_files = find_fp_headers(search_dir)
+
+    if not fp_files:
+        # Still create/overwrite fp.md with empty content
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write("# followup\n\n")
+        return
+
+    # Generate wikilinks
+    wikilinks = generate_wikilinks(fp_files, search_dir)
+
+    # Create content for fp.md
+    content = "# FP Files\n\n"
+    for wikilink in sorted(wikilinks):
+        content += f"- [ ] {wikilink}\n"
+
+    # Write to fp.md (overwrite existing content)
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+if __name__ == "__main__":
+    main()
