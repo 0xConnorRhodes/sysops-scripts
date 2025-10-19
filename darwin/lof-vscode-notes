@@ -1,12 +1,5 @@
 #!/bin/bash
 
-# This script brings a specific Visual Studio Code window to the front.
-# It uses osascript to run AppleScript commands that interact with the UI.
-
-# The name of the window you want to bring to the front.
-# We use 'contains' to match flexibly. For example, a window named
-# "notes - my_project" will be matched by "notes".
-
 # Encoding: utf-8
 #
 # @raycast.title LOF Code Notes
@@ -28,7 +21,7 @@ on run argv
         tell application "System Events"
             tell application process "Code"
                 set frontmost to true
-                set targetWindow to (first window whose name contains windowName)
+                set targetWindow to (first window whose name is windowName)
                 if exists targetWindow then
                     perform action "AXRaise" of targetWindow
                 else
