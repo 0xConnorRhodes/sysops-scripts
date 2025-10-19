@@ -6,7 +6,7 @@
 # The name of the window you want to bring to the front.
 # We use 'contains' to match flexibly. For example, a window named
 # "notes - my_project" will be matched by "notes".
- 
+
 # Encoding: utf-8
 #
 # @raycast.title LOF Code Notes
@@ -37,7 +37,7 @@ on run argv
             end tell
         end tell
     on error
-        display dialog "Could not find a Visual Studio Code window containing “" & windowName & "”." with title "Script Error" with icon stop
+        display dialog "Could not find a Visual Studio Code window containing \"" & windowName & "\"." with title "Script Error" with icon stop
     end try
 end run
-' "$WINDOW_NAME"
+' "$WINDOW_NAME" > /dev/null
