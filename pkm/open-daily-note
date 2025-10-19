@@ -1,0 +1,46 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to calculate the current date in 'yymmdd' format.
+- As a user, I want to construct a file path for a daily note, formatted as '~/code/notes/dn_DATE.md'.
+- As a user, I want to execute a command to open this file with the 'code' executable located at '$HOME/.nix-profile/bin/code'.
+- As a user, I want the script to run silently, printing no output on success.
+"""
+
+import subprocess
+from datetime import date
+from pathlib import Path
+
+
+def main():
+    today_str = date.today().strftime("%y%m%d")
+
+    home = Path.home()
+    code_executable = home / ".nix-profile/bin/code"
+    note_file = home / f"code/notes/dn_{today_str}.md"
+
+    command = [str(code_executable), str(note_file)]
+
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        print(f"Error: Command not found at {code_executable}", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing command: {e}", file=sys.stderr)
+        sys.exit(e.returncode)
+
+
+if __name__ == "__main__":
+    import sys
+    main()
