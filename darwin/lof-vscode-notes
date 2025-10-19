@@ -37,7 +37,7 @@ on run argv
             end tell
         end tell
     on error
-        display dialog "Could not find a Visual Studio Code window containing \"" & windowName & "\"." with title "Script Error" with icon stop
+        do shell script "$HOME/.nix-profile/bin/code $HOME/code/notes"
     end try
 end run
 ' "$WINDOW_NAME" > /dev/null
