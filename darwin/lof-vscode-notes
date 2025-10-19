@@ -52,4 +52,4 @@ on run argv
         do shell script "$HOME/.nix-profile/bin/code $HOME/code/notes"
     end try
 end run
-' "$WINDOW_NAME"
+' "$WINDOW_NAME" > /dev/null

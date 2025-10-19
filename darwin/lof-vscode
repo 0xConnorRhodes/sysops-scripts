@@ -64,4 +64,4 @@ on run argv
         do shell script "$HOME/.nix-profile/bin/code"
     end try
 end run
-' "$WINDOW_NAME"
+' "$WINDOW_NAME" > /dev/null
