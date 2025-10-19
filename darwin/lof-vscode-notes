@@ -15,14 +15,37 @@ on run argv
     set windowName to item 1 of argv
     try
         tell application "Visual Studio Code"
+            -- Check if VS Code is already frontmost
+            if frontmost then
+                -- Check if the notes window exists and is the front window
+                tell application "System Events"
+                    tell application process "Code"
+                        set targetWindow to (first window whose name is windowName)
+                        if exists targetWindow then
+                            set frontWindow to front window
+                            if name of frontWindow is windowName then
+                                -- The notes window is focused, hide VS Code
+                                tell application "System Events"
+                                    tell application process "Code"
+                                        set visible to false
+                                    end tell
+                                end tell
+                                return
+                            end if
+                        end if
+                    end tell
+                end tell
+            end if
+            
+            -- Either VS Code is not frontmost or notes window is not the front window
             activate
         end tell
 
         tell application "System Events"
             tell application process "Code"
-                set frontmost to true
                 set targetWindow to (first window whose name is windowName)
                 if exists targetWindow then
+                    set frontmost to true
                     perform action "AXRaise" of targetWindow
                 else
                     error "Window not found."
@@ -33,4 +56,4 @@ on run argv
         do shell script "$HOME/.nix-profile/bin/code $HOME/code/notes"
     end try
 end run
-' "$WINDOW_NAME" > /dev/null
+' "$WINDOW_NAME"

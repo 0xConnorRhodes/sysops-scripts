@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Encoding: utf-8
+#
+# @raycast.title LOF Code
+# @raycast.author Connor Rhodes
+# @raycast.description launch or focus vscode
+# @raycast.mode silent
+#
+# @raycast.schemaVersion 1
+WINDOW_NAME="notes"
+
+/usr/bin/osascript -e '
+on run argv
+    set excludeWindowName to item 1 of argv
+    try
+        tell application "Visual Studio Code"
+            activate
+        end tell
+
+        tell application "System Events"
+            tell application process "Code"
+                set frontmost to true
+                set allWindows to every window
+                set nonNotesWindows to {}
+
+                -- Find all windows that are NOT the notes window
+                repeat with w in allWindows
+                    if name of w is not equal to excludeWindowName then
+                        set end of nonNotesWindows to w
+                    end if
+                end repeat
+
+                if (count of nonNotesWindows) > 0 then
+                    -- Focus the first non-notes window
+                    set targetWindow to item 1 of nonNotesWindows
+                    perform action "AXRaise" of targetWindow
+                else
+                    -- Only notes window exists or no windows, open new VS Code window
+                    error "No non-notes windows found."
+                end if
+            end tell
+        end tell
+    on error
+        -- VS Code not running or only notes window exists, launch new instance
+        do shell script "$HOME/.nix-profile/bin/code"
+    end try
+end run
+' "$WINDOW_NAME" > /dev/null
