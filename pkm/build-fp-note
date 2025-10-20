@@ -9,131 +9,225 @@
 """
 Script Requirements:
 - read the file ~/code/notes/fp.md. for any lines beginning with '- [x] [[df/' remove the linked file on disk.
-- after that, search all *.md files in ~/code/notes/df. for any that contain a header called "fp" add a wikilink to that file in fp.md
-- the format of the line added should be the following. If the file is ~/code/notes/df/123.md, the line added should be: "- [ ] [[df/123]]" Note that the ".md" file extension is not added to the wikilink
+- for any lines beginning with '- [x] [[' that are NOT in the df directory, rename the "fp" header in the associated file to "~~fp~~"
+- search all *.md files in ~/code/notes (using ripgrep for performance) for any that contain a header called "fp" (but not "~~fp~~") and add a wikilink to that file in fp.md
+- the format of the line added should be the following. If the file is ~/code/notes/df/123.md, the line added should be: "- [ ] [[df/123]]". If the file is ~/code/notes/projects/abc.md, the line added should be: "- [ ] [[projects/abc]]". Note that the ".md" file extension is not added to the wikilink and links are relative to the fp.md file location
 - the script should overwrite the existing contents of the fp.md note with the newly generated contents per above.
 """
 
 import os
 import re
 import glob
+import subprocess
+import json
 from pathlib import Path
+
+def rename_fp_headers(file_path):
+    """
+    Rename all 'fp' headers in a file to '~~fp~~'.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Pattern to match markdown headers containing 'fp'
+        # Matches # fp, ## fp, ### fp, etc. (case insensitive)
+        header_pattern = re.compile(r'^(#+\s*)fp(\s*)$', re.IGNORECASE | re.MULTILINE)
+
+        # Replace with strikethrough version
+        new_content = header_pattern.sub(r'\1~~fp~~\2', content)
+
+        # Only write if content changed
+        if new_content != content:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+
+    except (IOError, UnicodeDecodeError) as e:
+        raise Exception(f"Could not process file {file_path}: {e}")
 
 def process_existing_fp_file(fp_file_path, notes_dir):
     """
-    Read existing fp.md file and delete files that correspond to checked checkboxes.
-    Returns list of files that were deleted.
+    Read existing fp.md file and process checked checkboxes:
+    - For df/ files: delete the files from disk
+    - For other files: rename "fp" headers to "~~fp~~"
+    Returns list of files that were processed.
     """
     if not os.path.exists(fp_file_path):
         return []
 
-    deleted_files = []
+    processed_files = []
 
     try:
         with open(fp_file_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         # Pattern to match checked checkbox lines with wikilinks
-        # Matches: - [x] [[df/filename]]
-        checked_pattern = re.compile(r'^- \[x\] \[\[df/([^\]]+)\]\]', re.MULTILINE)
+        # Matches: - [x] [[path/filename]]
+        checked_pattern = re.compile(r'^- \[x\] \[\[([^\]]+)\]\]', re.MULTILINE)
 
         matches = checked_pattern.findall(content)
 
-        for filename in matches:
+        for wikilink_path in matches:
             # Construct full path to the file
-            file_path = os.path.join(notes_dir, "df", f"{filename}.md")
+            file_path = os.path.join(notes_dir, f"{wikilink_path}.md")
 
             if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                    deleted_files.append(file_path)
-                    print(f"Deleted: {file_path}")
-                except OSError as e:
-                    print(f"Error deleting {file_path}: {e}")
+                if wikilink_path.startswith("df/"):
+                    # For df/ files, delete them
+                    try:
+                        os.remove(file_path)
+                        processed_files.append(f"Deleted: {file_path}")
+                        print(f"Deleted: {file_path}")
+                    except OSError as e:
+                        print(f"Error deleting {file_path}: {e}")
+                else:
+                    # For other files, rename fp headers to ~~fp~~
+                    try:
+                        rename_fp_headers(file_path)
+                        processed_files.append(f"Renamed headers in: {file_path}")
+                        print(f"Renamed fp headers in: {file_path}")
+                    except Exception as e:
+                        print(f"Error renaming headers in {file_path}: {e}")
             else:
                 print(f"File not found (skipping): {file_path}")
 
     except (IOError, UnicodeDecodeError) as e:
         print(f"Warning: Could not read {fp_file_path}: {e}")
 
-    return deleted_files
+    return processed_files
 
-def find_fp_headers(directory):
+def find_fp_headers(notes_dir):
     """
-    Search for *.md files in the given directory that contain 'fp' headers.
+    Use ripgrep to search for *.md files in the notes directory that contain 'fp' headers.
+    Excludes files with '~~fp~~' headers.
     Returns a list of file paths that contain fp headers.
     """
+    try:
+        # Use ripgrep to find files with fp headers
+        # -i: case insensitive
+        # -l: only show filenames
+        # -g: glob pattern for .md files
+        # --: end of options (in case directory name starts with -)
+        cmd = [
+            'rg',
+            '-i',           # case insensitive
+            '-l',           # only list filenames
+            '-g', '*.md',   # only .md files
+            r'^#+\s*fp\s*$', # regex pattern for fp headers
+            '--',           # end of options
+            notes_dir
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        fp_files = result.stdout.strip().split('\n') if result.stdout.strip() else []
+
+        # Filter out files that contain ~~fp~~ headers instead of fp headers
+        filtered_files = []
+        for file_path in fp_files:
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+
+                    # Check if file has fp headers (not ~~fp~~)
+                    fp_pattern = re.compile(r'^#+\s*fp\s*$', re.IGNORECASE | re.MULTILINE)
+                    strikethrough_pattern = re.compile(r'^#+\s*~~fp~~\s*$', re.IGNORECASE | re.MULTILINE)
+
+                    if fp_pattern.search(content) and not strikethrough_pattern.search(content):
+                        filtered_files.append(file_path)
+
+                except (IOError, UnicodeDecodeError) as e:
+                    print(f"Warning: Could not read {file_path}: {e}")
+
+        return filtered_files
+
+    except subprocess.CalledProcessError as e:
+        # If ripgrep fails, fall back to glob search in df directory only
+        print(f"Warning: ripgrep failed ({e}), falling back to df directory search")
+        return find_fp_headers_fallback(os.path.join(notes_dir, "df"))
+    except FileNotFoundError:
+        # If ripgrep is not installed, fall back to glob search
+        print("Warning: ripgrep not found, falling back to df directory search")
+        return find_fp_headers_fallback(os.path.join(notes_dir, "df"))
+
+def find_fp_headers_fallback(directory):
+    """
+    Fallback function using glob search for df directory only.
+    """
+    if not os.path.exists(directory):
+        return []
+
     md_files = glob.glob(os.path.join(directory, "*.md"))
     fp_files = []
 
     # Regex pattern to match markdown headers containing 'fp'
     # Matches # fp, ## fp, ### fp, etc. (case insensitive)
     header_pattern = re.compile(r'^#+\s*fp\s*$', re.IGNORECASE | re.MULTILINE)
+    strikethrough_pattern = re.compile(r'^#+\s*~~fp~~\s*$', re.IGNORECASE | re.MULTILINE)
 
     for file_path in md_files:
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-                if header_pattern.search(content):
+                if header_pattern.search(content) and not strikethrough_pattern.search(content):
                     fp_files.append(file_path)
         except (IOError, UnicodeDecodeError) as e:
             print(f"Warning: Could not read {file_path}: {e}")
 
     return fp_files
 
-def generate_wikilinks(fp_files, base_dir):
+def generate_wikilinks(fp_files, notes_dir):
     """
     Generate wikilinks for the found files.
-    Convert absolute paths to relative wikilinks.
+    Convert absolute paths to relative wikilinks from fp.md location.
     """
     wikilinks = []
-    base_path = Path(base_dir)
+    notes_path = Path(notes_dir)
 
     for file_path in fp_files:
         file_path_obj = Path(file_path)
-        # Get relative path from base directory
+        # Get relative path from notes directory
         try:
-            rel_path = file_path_obj.relative_to(base_path.parent)
+            rel_path = file_path_obj.relative_to(notes_path)
             # Remove .md extension and create wikilink
             wikilink_path = str(rel_path).replace('.md', '')
             wikilink = f"[[{wikilink_path}]]"
             wikilinks.append(wikilink)
         except ValueError:
-            # If file is not relative to base path, use filename only
-            filename = file_path_obj.stem
-            wikilink = f"[[df/{filename}]]"
-            wikilinks.append(wikilink)
+            # If file is not relative to notes path, skip it
+            print(f"Warning: File {file_path} is not within notes directory, skipping")
+            continue
 
     return wikilinks
 
 def main():
     # Define paths
     notes_dir = os.path.expanduser("~/code/notes")
-    search_dir = os.path.join(notes_dir, "df")
     output_file = os.path.join(notes_dir, "fp.md")
 
-    # Check if search directory exists
-    if not os.path.exists(search_dir):
-        print(f"Error: Directory {search_dir} does not exist")
+    # Check if notes directory exists
+    if not os.path.exists(notes_dir):
+        print(f"Error: Directory {notes_dir} does not exist")
         return
 
-    # First, process existing fp.md file and delete checked items
-    deleted_files = process_existing_fp_file(output_file, notes_dir)
+    # First, process existing fp.md file and handle checked items
+    processed_files = process_existing_fp_file(output_file, notes_dir)
 
-    if deleted_files:
-        print(f"Deleted {len(deleted_files)} files based on checked checkboxes")
+    if processed_files:
+        print(f"Processed {len(processed_files)} files based on checked checkboxes")
 
-    # Find files with fp headers
-    fp_files = find_fp_headers(search_dir)
+    # Find files with fp headers across all of notes directory
+    fp_files = find_fp_headers(notes_dir)
 
     if not fp_files:
         # Still create/overwrite fp.md with empty content
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write("# followup\n\n")
+        print("No files with fp headers found. Created empty fp.md file.")
         return
 
     # Generate wikilinks
-    wikilinks = generate_wikilinks(fp_files, search_dir)
+    wikilinks = generate_wikilinks(fp_files, notes_dir)
 
     # Create content for fp.md
     content = "# FP Files\n\n"
@@ -144,6 +238,8 @@ def main():
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(content)
+
+    print(f"Generated fp.md with {len(wikilinks)} files")
 
 if __name__ == "__main__":
     main()
