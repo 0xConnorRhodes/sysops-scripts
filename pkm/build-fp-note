@@ -1,9 +1,13 @@
 #!/usr/bin/env -S uv run --script
-"""
-Script to search for markdown files containing 'fp' headers and generate wikilinks.
-First processes existing fp.md to delete files marked with checked checkboxes.
 
-SPEC:
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+
+"""
+Script Requirements:
 - read the file ~/code/notes/fp.md. for any lines beginning with '- [x] [[df/' remove the linked file on disk.
 - after that, search all *.md files in ~/code/notes/df. for any that contain a header called "fp" add a wikilink to that file in fp.md
 - the format of the line added should be the following. If the file is ~/code/notes/df/123.md, the line added should be: "- [ ] [[df/123]]" Note that the ".md" file extension is not added to the wikilink
