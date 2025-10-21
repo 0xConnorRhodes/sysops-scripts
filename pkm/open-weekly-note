@@ -1,0 +1,75 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to find all files in '~/code/notes/' matching 'week_*.md'.
+- As a user, I want to parse the 'yymmdd' date part from these filenames.
+- As a user, I want to identify the file with the most recent (highest integer) date.
+- As a user, I want to open this specific file using the 'code' executable at '$HOME/.nix-profile/bin/code'.
+- As a user, I want the script to run silently, printing no output on success.
+"""
+
+import subprocess
+from pathlib import Path
+
+
+def find_latest_weekly_note(notes_dir: Path) -> Path | None:
+    """Finds the weekly note with the highest numerical date in the filename."""
+    weekly_notes = []
+    for f in notes_dir.glob("week_*.md"):
+        if not f.is_file():
+            continue
+
+        date_str = f.stem[5:]  # Get part after "week_"
+        
+        # Ensure it's a 6-digit numeric string
+        if len(date_str) == 6:
+            try:
+                date_int = int(date_str)
+                weekly_notes.append((date_int, f))
+            except ValueError:
+                continue  # Ignore files like "week_not_a_date.md"
+
+    if not weekly_notes:
+        return None
+
+    # max() on a list of tuples sorts by the first element (the date_int)
+    latest_note = max(weekly_notes)
+    return latest_note[1]  # Return the Path object
+
+
+def main():
+    home = Path.home()
+    code_executable = home / ".nix-profile/bin/code"
+    notes_dir = home / "code/notes"
+
+    latest_note_file = find_latest_weekly_note(notes_dir)
+
+    if latest_note_file is None:
+        print(f"Error: No weekly notes found in {notes_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    command = [str(code_executable), str(latest_note_file)]
+
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        print(f"Error: Command not found at {code_executable}", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing command: {e}", file=sys.stderr)
+        sys.exit(e.returncode)
+
+
+if __name__ == "__main__":
+    import sys
+    main()
