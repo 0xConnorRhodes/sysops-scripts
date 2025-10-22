@@ -11,7 +11,8 @@ Script Requirements:
 - As a user, I want to create a hardlink for any matching file in '~/.local/notes/housenotes/'.
 - As a user, if a matching file is in '~/code/notes/df', I want the hardlink's name to be a lowercase, kebab-case version of its H1 header (e.g., 'my-header.md').
 - As a user, if a matching file in '~/code/notes/df' has no H1 header, I want a warning printed to stderr, and the script should continue.
-- As a user, the script should be silent on success and only print warnings or errors to stderr.
+- As a user, I want to see print output for files that were processed, showing both newly created hardlinks and files that were already linked.
+- As a user, I want warnings and errors printed to stderr.
 """
 
 import sys
