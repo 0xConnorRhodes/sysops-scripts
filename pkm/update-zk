@@ -17,56 +17,75 @@ import sys
 import subprocess
 from pathlib import Path
 
+def prune_rm_notes():
+    """Remove notes that contain #rm tag or only contain a single # character."""
+    target_dir = Path.home() / "code" / "notes"
+
+    if not target_dir.is_dir():
+        print(f"Error: Directory not found: {target_dir}", file=sys.stderr)
+        return False
+
+    removed_files = []
+
+    # Use rg to find files containing "#rm"
+    try:
+        result = subprocess.run(
+            ["rg", "--files-with-matches", "--type", "md", "#rm", str(target_dir)],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+
+        if result.returncode == 0:
+            files_with_rm = [Path(line.strip()) for line in result.stdout.strip().split('\n') if line.strip()]
+            for file_path in files_with_rm:
+                try:
+                    file_path.unlink()
+                    removed_files.append(str(file_path))
+                except OSError as e:
+                    print(f"Error: Could not remove file {file_path}: {e}", file=sys.stderr)
+        elif result.returncode != 1:  # 1 means no matches found, which is fine
+            print(f"Error running rg: {result.stderr}", file=sys.stderr)
+
+    except FileNotFoundError:
+        print("Error: rg (ripgrep) is not installed or not in PATH", file=sys.stderr)
+        return False
+    except subprocess.SubprocessError as e:
+        print(f"Error running rg: {e}", file=sys.stderr)
+        return False
+
+    # Scan all .md files to find those with only a single "#" character
+    for file_path in target_dir.rglob("*.md"):
+        try:
+            content = file_path.read_text(encoding="utf-8")
+
+            if content.strip() == "#":
+                try:
+                    file_path.unlink()
+                    removed_files.append(str(file_path))
+                except OSError as e:
+                    print(f"Error: Could not remove file {file_path}: {e}", file=sys.stderr)
+
+        except OSError as e:
+            print(f"Error: Could not read file {file_path}: {e}", file=sys.stderr)
+        except UnicodeDecodeError as e:
+            print(f"Error: Could not decode file {file_path} as UTF-8: {e}", file=sys.stderr)
+
+    # Print summary of removed files
+    if removed_files:
+        print(f"Removed {len(removed_files)} note(s):")
+        for file_path in removed_files:
+            print(f"  - {file_path}")
+    else:
+        print("No notes were removed.")
+
+    return True
+
 def main():
     try:
-        target_dir = Path.home() / "code" / "notes"
-
-        if not target_dir.is_dir():
-            print(f"Error: Directory not found: {target_dir}", file=sys.stderr)
+        success = prune_rm_notes()
+        if not success:
             sys.exit(1)
-
-        # Use rg to find files containing "#rm"
-        try:
-            result = subprocess.run(
-                ["rg", "--files-with-matches", "--type", "md", "#rm", str(target_dir)],
-                capture_output=True,
-                text=True,
-                check=False
-            )
-
-            if result.returncode == 0:
-                files_with_rm = [Path(line.strip()) for line in result.stdout.strip().split('\n') if line.strip()]
-                for file_path in files_with_rm:
-                    try:
-                        file_path.unlink()
-                    except OSError as e:
-                        print(f"Error: Could not remove file {file_path}: {e}", file=sys.stderr)
-            elif result.returncode != 1:  # 1 means no matches found, which is fine
-                print(f"Error running rg: {result.stderr}", file=sys.stderr)
-
-        except FileNotFoundError:
-            print("Error: rg (ripgrep) is not installed or not in PATH", file=sys.stderr)
-            sys.exit(1)
-        except subprocess.SubprocessError as e:
-            print(f"Error running rg: {e}", file=sys.stderr)
-            sys.exit(1)
-
-        # Scan all .md files to find those with only a single "#" character
-        for file_path in target_dir.rglob("*.md"):
-            try:
-                content = file_path.read_text(encoding="utf-8")
-
-                if content.strip() == "#":
-                    try:
-                        file_path.unlink()
-                    except OSError as e:
-                        print(f"Error: Could not remove file {file_path}: {e}", file=sys.stderr)
-
-            except OSError as e:
-                print(f"Error: Could not read file {file_path}: {e}", file=sys.stderr)
-            except UnicodeDecodeError as e:
-                print(f"Error: Could not decode file {file_path} as UTF-8: {e}", file=sys.stderr)
-
     except Exception as e:
         print(f"An unexpected error occurred: {e}", file=sys.stderr)
         sys.exit(1)
