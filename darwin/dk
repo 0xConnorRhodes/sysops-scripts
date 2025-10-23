@@ -11,7 +11,11 @@ Script Requirements:
 - As a user, I want to transcribe each downloaded .mp4 file using 'parakeet-mlx --output-format txt'.
 - As a user, I want the transcriptions to be processed in chronological order, based on the timestamp in the filename (lowest integer first).
 - As a user, I want the resulting .txt transcription files to be saved in the same '~/.local/dictations' directory.
-- As a user, I want the text content of all transcriptions to be copied to my (macOS) system clipboard using 'pbcopy'.
+- As a user, I want the transcribed text to be processed to:
+  - Lowercase words in the middle of a sentence (e.g., 'This is a Test' becomes 'This is a test').
+  - Capitalize the first word of every new sentence (following '.', '!', or '?').
+  - Always capitalize the word 'I' and its contractions (e.g., 'i'm' becomes 'I'm').
+- As a user, I want the processed text content of all transcriptions to be copied to my (macOS) system clipboard using 'pbcopy'.
 - As a user, I want a single transcription to be copied as-is.
 - As a user, I want multiple transcriptions to be joined together, separated by a markdown horizontal rule ('---').
 - As a user, I want both the original .mp4 files and the .txt transcriptions to be moved to the system trash using the 'trash' utility after processing.
@@ -20,6 +24,7 @@ Script Requirements:
 
 import subprocess
 import sys
+import re
 from pathlib import Path
 
 # --- Configuration ---
@@ -27,11 +32,65 @@ REMOTE_SRC_SPEC = "m:/scary/files/share/drop"
 LOCAL_DEST_DIR = Path.home() / ".local" / "dictations"
 FILE_PATTERN = "dict-*.mp4"
 CLIPBOARD_SEPARATOR = "\n\n---\n\n"
+I_CONTRACTIONS = {"i", "i'm", "i'd", "i'll", "i've"}
 # ---------------------
+
+def process_transcription_text(text: str) -> str:
+    """
+    Processes transcribed text to correct capitalization.
+    - Capitalizes the first word of each sentence.
+    - Always capitalizes "I" and its contractions.
+    - Lowercases all other mid-sentence words.
+    """
+    
+    # Split text into segments and delimiters (punctuation)
+    # This regex captures the delimiters, so they are kept in the list
+    parts = re.split(r'([.!?]|\.\.\.)', text)
+    processed_parts = []
+
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            # This is a delimiter, just append it
+            processed_parts.append(part)
+            continue
+        
+        # This is a text segment. Preserve its original leading/trailing whitespace.
+        stripped_part = part.strip()
+        if not stripped_part:
+            processed_parts.append(part) # Preserve whitespace-only parts
+            continue
+
+        # Find original whitespace to re-apply later
+        leading_ws_match = re.match(r'^\s*', part)
+        leading_ws = leading_ws_match.group(0) if leading_ws_match else ""
+        
+        trailing_ws_match = re.search(r'\s*$', part)
+        trailing_ws = trailing_ws_match.group(0) if trailing_ws_match else ""
+
+        words = stripped_part.split()
+        processed_words = []
+        
+        for j, word in enumerate(words):
+            if j == 0:
+                # First word of a sentence segment, always capitalize.
+                processed_words.append(word.capitalize())
+            elif word.lower() in I_CONTRACTIONS:
+                # "I" and its contractions, always capitalize.
+                processed_words.append(word.capitalize())
+            else:
+                # Any other mid-sentence word, lowercase.
+                processed_words.append(word.lower())
+        
+        # Re-assemble the part with its original whitespace
+        reassembled_part = leading_ws + " ".join(processed_words) + trailing_ws
+        processed_parts.append(reassembled_part)
+
+    return "".join(processed_parts)
 
 def main():
     try:
         # 1. Ensure local destination directory exists
+        print(f"Ensuring destination directory exists: {LOCAL_DEST_DIR}")
         LOCAL_DEST_DIR.mkdir(parents=True, exist_ok=True)
 
         # 2. Parse remote path
@@ -58,7 +117,7 @@ def main():
             rsync_dest
         ]
         
-        #print(f"Downloading files from {rsync_src}...")
+        print(f"Downloading files from {rsync_src}...")
         subprocess.run(
             rsync_cmd,
             check=True,
@@ -108,9 +167,10 @@ def main():
         print("All transcriptions complete.")
 
         # 6. Prepare clipboard content
-        print("Consolidating text for clipboard...")
+        print("Consolidating and processing text for clipboard...")
         clipboard_content = [
-            f.read_text(encoding="utf-8") for f in transcribed_files
+            process_transcription_text(f.read_text(encoding="utf-8")) 
+            for f in transcribed_files
         ]
         final_clipboard_text = CLIPBOARD_SEPARATOR.join(clipboard_content)
 
@@ -129,12 +189,15 @@ def main():
         # 8. Trash files
         files_to_trash = [str(f) for f in downloaded_files + transcribed_files]
         if files_to_trash:
+            print(f"Moving {len(files_to_trash)} processed files to trash...")
             subprocess.run(
                 ["trash"] + files_to_trash,
                 check=True,
                 capture_output=True
             )
         
+        print("Done.")
+
     except subprocess.CalledProcessError as e:
         print(f"Error running command: {' '.join(e.cmd)}", file=sys.stderr)
         print(f"Return Code: {e.returncode}", file=sys.stderr)
