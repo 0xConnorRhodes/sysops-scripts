@@ -90,7 +90,6 @@ def process_transcription_text(text: str) -> str:
 def main():
     try:
         # 1. Ensure local destination directory exists
-        print(f"Ensuring destination directory exists: {LOCAL_DEST_DIR}")
         LOCAL_DEST_DIR.mkdir(parents=True, exist_ok=True)
 
         # 2. Parse remote path
@@ -117,7 +116,6 @@ def main():
             rsync_dest
         ]
         
-        print(f"Downloading files from {rsync_src}...")
         subprocess.run(
             rsync_cmd,
             check=True,
@@ -189,15 +187,12 @@ def main():
         # 8. Trash files
         files_to_trash = [str(f) for f in downloaded_files + transcribed_files]
         if files_to_trash:
-            print(f"Moving {len(files_to_trash)} processed files to trash...")
             subprocess.run(
                 ["trash"] + files_to_trash,
                 check=True,
                 capture_output=True
             )
         
-        print("Done.")
-
     except subprocess.CalledProcessError as e:
         print(f"Error running command: {' '.join(e.cmd)}", file=sys.stderr)
         print(f"Return Code: {e.returncode}", file=sys.stderr)
