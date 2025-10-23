@@ -15,7 +15,7 @@ Script Requirements:
 - As a user, I want a single transcription to be copied as-is.
 - As a user, I want multiple transcriptions to be joined together, separated by a markdown horizontal rule ('---').
 - As a user, I want both the original .mp4 files and the .txt transcriptions to be moved to the system trash using the 'trash' utility after processing.
-- As a user, I want the script to run silently, printing no output on success, but printing errors to stderr on failure.
+- As a user, I want to see status messages printed for each major step of the process.
 """
 
 import subprocess
@@ -58,6 +58,7 @@ def main():
             rsync_dest
         ]
         
+        #print(f"Downloading files from {rsync_src}...")
         subprocess.run(
             rsync_cmd,
             check=True,
@@ -69,11 +70,15 @@ def main():
         # 4. Find and sort downloaded files
         downloaded_files = sorted(LOCAL_DEST_DIR.glob(FILE_PATTERN))
         if not downloaded_files:
+            print("No new files found to process.")
             sys.exit(0)
+        
+        print(f"Found {len(downloaded_files)} files to transcribe.")
 
         # 5. Transcribe files
         transcribed_files = []
         for mp4_file in downloaded_files:
+            print(f"  Transcribing {mp4_file.name}...")
             transcript_cmd = [
                 "parakeet-mlx", 
                 "--output-format", 
@@ -99,8 +104,11 @@ def main():
                 )
                 sys.exit(1)
             transcribed_files.append(txt_file)
+        
+        print("All transcriptions complete.")
 
         # 6. Prepare clipboard content
+        print("Consolidating text for clipboard...")
         clipboard_content = [
             f.read_text(encoding="utf-8") for f in transcribed_files
         ]
@@ -116,6 +124,7 @@ def main():
                 capture_output=True,
                 encoding="utf-8"
             )
+            print("Copied to clipboard.")
 
         # 8. Trash files
         files_to_trash = [str(f) for f in downloaded_files + transcribed_files]
@@ -125,7 +134,7 @@ def main():
                 check=True,
                 capture_output=True
             )
-
+        
     except subprocess.CalledProcessError as e:
         print(f"Error running command: {' '.join(e.cmd)}", file=sys.stderr)
         print(f"Return Code: {e.returncode}", file=sys.stderr)
