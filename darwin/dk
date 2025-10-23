@@ -1,0 +1,146 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
+"""
+Script Requirements:
+- As a user, I want to download files matching 'dict-*.mp4' from a remote server using rsync.
+- As a user, I want the downloaded files to be saved to '~/.local/dictations'.
+- As a user, I want the original files to be removed from the server after successful download.
+- As a user, I want to transcribe each downloaded .mp4 file using 'parakeet-mlx --output-format txt'.
+- As a user, I want the transcriptions to be processed in chronological order, based on the timestamp in the filename (lowest integer first).
+- As a user, I want the resulting .txt transcription files to be saved in the same '~/.local/dictations' directory.
+- As a user, I want the text content of all transcriptions to be copied to my (macOS) system clipboard using 'pbcopy'.
+- As a user, I want a single transcription to be copied as-is.
+- As a user, I want multiple transcriptions to be joined together, separated by a markdown horizontal rule ('---').
+- As a user, I want both the original .mp4 files and the .txt transcriptions to be moved to the system trash using the 'trash' utility after processing.
+- As a user, I want the script to run silently, printing no output on success, but printing errors to stderr on failure.
+"""
+
+import subprocess
+import sys
+from pathlib import Path
+
+# --- Configuration ---
+REMOTE_SRC_SPEC = "m:/scary/files/share/drop"
+LOCAL_DEST_DIR = Path.home() / ".local" / "dictations"
+FILE_PATTERN = "dict-*.mp4"
+CLIPBOARD_SEPARATOR = "\n\n---\n\n"
+# ---------------------
+
+def main():
+    try:
+        # 1. Ensure local destination directory exists
+        LOCAL_DEST_DIR.mkdir(parents=True, exist_ok=True)
+
+        # 2. Parse remote path
+        try:
+            remote_host, remote_path = REMOTE_SRC_SPEC.split(":", 1)
+        except ValueError:
+            print(
+                f"Error: Invalid REMOTE_SRC_SPEC '{REMOTE_SRC_SPEC}'. "
+                "Expected 'host:path' format.",
+                file=sys.stderr
+            )
+            sys.exit(1)
+
+        # 3. Download files with rsync
+        rsync_src = f"{remote_host}:{remote_path}/"
+        rsync_dest = f"{LOCAL_DEST_DIR}/"
+        rsync_cmd = [
+            "rsync",
+            "-av",
+            f"--include={FILE_PATTERN}",
+            "--exclude=*",
+            "--remove-source-files",
+            rsync_src,
+            rsync_dest
+        ]
+        
+        subprocess.run(
+            rsync_cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8"
+        )
+
+        # 4. Find and sort downloaded files
+        downloaded_files = sorted(LOCAL_DEST_DIR.glob(FILE_PATTERN))
+        if not downloaded_files:
+            sys.exit(0)
+
+        # 5. Transcribe files
+        transcribed_files = []
+        for mp4_file in downloaded_files:
+            transcript_cmd = [
+                "parakeet-mlx", 
+                "--output-format", 
+                "txt", 
+                mp4_file.name
+            ]
+            
+            subprocess.run(
+                transcript_cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                cwd=LOCAL_DEST_DIR,
+                encoding="utf-8"
+            )
+
+            txt_file = mp4_file.with_suffix(".txt")
+            if not txt_file.exists():
+                print(
+                    f"Error: Transcription file {txt_file} not found "
+                    "after running parakeet-mlx.",
+                    file=sys.stderr
+                )
+                sys.exit(1)
+            transcribed_files.append(txt_file)
+
+        # 6. Prepare clipboard content
+        clipboard_content = [
+            f.read_text(encoding="utf-8") for f in transcribed_files
+        ]
+        final_clipboard_text = CLIPBOARD_SEPARATOR.join(clipboard_content)
+
+        # 7. Copy to clipboard
+        if final_clipboard_text:
+            subprocess.run(
+                ["pbcopy"],
+                input=final_clipboard_text,
+                text=True,
+                check=True,
+                capture_output=True,
+                encoding="utf-8"
+            )
+
+        # 8. Trash files
+        files_to_trash = [str(f) for f in downloaded_files + transcribed_files]
+        if files_to_trash:
+            subprocess.run(
+                ["trash"] + files_to_trash,
+                check=True,
+                capture_output=True
+            )
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error running command: {' '.join(e.cmd)}", file=sys.stderr)
+        print(f"Return Code: {e.returncode}", file=sys.stderr)
+        if e.stdout:
+            print(f"STDOUT: {e.stdout}", file=sys.stderr)
+        if e.stderr:
+            print(f"STDERR: {e.stderr}", file=sys.stderr)
+        sys.exit(1)
+    except FileNotFoundError as e:
+        print(
+            f"Error: Command not found. Is '{e.filename}' installed "
+            "and in your PATH?",
+            file=sys.stderr
+        )
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
