@@ -124,8 +124,8 @@ if ENV['TERMUX_VERSION']
   exec("termux-open \"#{task_file}\"")
 elsif RUBY_PLATFORM.include?("darwin")
   #exec("open \"obsidian://open?vault=notes&file=#{File.basename(task_file)}\"")
-  #exec("/Users/connor.rhodes/.nix-profile/bin/code \"~/code/notes/#{File.basename(task_file)}\"")
-  puts File.basename(task_file)
+  #exec(/Users/connor.rhodes/.nix-profile/bin/code \"~/code/notes/#{File.basename(task_file)}\"")
+  puts "#{ENV['HOME']}/.nix-profile/bin/code \"#{ENV['HOME']}/code/notes/#{File.basename(task_file)}\""
 else
   exec("nvim \"#{task_file}\"")
 end
