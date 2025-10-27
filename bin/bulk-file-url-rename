@@ -1,0 +1,92 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to recursively scan all subdirectories starting from the current directory ('.').
+- As a user, I want to find all '.mp4' files.
+- As a user, I want to identify files that match patterns like:
+  - 'NUMBERS_NUMBERS SPACE TITLE.mp4'
+  - 'NUMBERS_NUMBERS_TITLE.mp4'
+  - 'NUMBERS_NUMBERS_ SPACE TITLE.mp4'
+- As a user, I want to *ignore* files already formatted as 'NUMBERS_NUMBERS-TITLE.mp4'.
+- As a user, I want to convert all spaces *and* hyphens in the 'TITLE' part to underscores.
+- As a user, I want to see a 'dry run' list of all proposed renames, showing the old and new path.
+- As a user, I want to be prompted *once* to confirm or abort all proposed renames after seeing the list.
+- As a user, if I confirm, I want the script to apply all renames.
+- As a user, if I abort, I want the script to make no changes.
+- As a user, I want the script to print only the dry run, prompts, and any errors.
+"""
+
+import os
+import re
+import sys
+
+ROOT_DIR = "."
+
+FILE_PATTERN = re.compile(r"^(\d+_\d+)([ _]+)(.*)(\.mp4)$")
+
+def main():
+    """
+    Walks the directory tree, finds matching files, and renames them
+    after a confirmation prompt.
+    """
+    renames_to_perform = []
+
+    try:
+        for dirpath, _, filenames in os.walk(ROOT_DIR):
+            for filename in filenames:
+                match = FILE_PATTERN.match(filename)
+                
+                if not match:
+                    continue
+
+                prefix = match.group(1)
+                title = match.group(3)
+                extension = match.group(4)
+
+                new_title = title.replace(" ", "_").replace("-", "_")
+                
+                new_filename = f"{prefix}-{new_title}{extension}"
+                
+                old_path = os.path.join(dirpath, filename)
+                new_path = os.path.join(dirpath, new_filename)
+
+                renames_to_perform.append((old_path, new_path))
+
+    except Exception as e:
+        print(f"A critical error occurred during scanning: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if not renames_to_perform:
+        print("No files found matching the rename pattern.")
+        return
+
+    print("--- Dry Run: Proposed Renames ---")
+    for old_path, new_path in renames_to_perform:
+        print(f"Would rename:\n  '{old_path}'\n  -> '{new_path}'\n")
+    
+    print("---------------------------------")
+    print(f"Total files to rename: {len(renames_to_perform)}")
+
+    try:
+        confirm = input("Apply all renames? (y/n): ").strip().lower()
+    except EOFError:
+        confirm = 'n'
+
+    if confirm == 'y':
+        print("Applying renames...")
+        for old_path, new_path in renames_to_perform:
+            try:
+                os.rename(old_path, new_path)
+            except OSError as e:
+                print(f"Error renaming '{old_path}': {e}", file=sys.stderr)
+        print("All renames applied.")
+    else:
+        print("Aborting. No changes made.")
+
+if __name__ == "__main__":
+    main()
