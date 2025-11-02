@@ -1,0 +1,56 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to get the current date.
+- As a user, I want to format the current date as 'yymmdd'.
+- As a user, I want to construct a file path: '~/code/notes/s/cal_budget-DATE.md', replacing DATE with the formatted date.
+- As a user, I want to execute a command to open this file using '$HOME/.nix-profile/bin/code'.
+"""
+
+import subprocess
+import sys
+import os.path
+from datetime import date
+
+
+def main():
+    """
+    Gets the current date, formats the command, and executes it.
+    """
+    try:
+        today = date.today()
+        date_str = today.strftime("%y%m%d")
+
+        command_path_raw = "~/.nix-profile/bin/code"
+        command_path = os.path.expanduser(command_path_raw)
+
+        file_path_raw = f"~/code/notes/s/cal_budget-{date_str}.md"
+        file_path_expanded = os.path.expanduser(file_path_raw)
+
+        command = [command_path, file_path_expanded]
+
+        subprocess.run(command, check=True, capture_output=True, text=True)
+
+    except FileNotFoundError:
+        print(
+            f"Error: The command '{command_path}' (from '{command_path_raw}') was not found.",
+            file=sys.stderr
+        )
+        sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing command: {e}", file=sys.stderr)
+        print(f"STDOUT: {e.stdout}", file=sys.stderr)
+        print(f"STDERR: {e.stderr}", file=sys.stderr)
+        sys.exit(e.returncode)
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
