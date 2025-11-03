@@ -12,7 +12,9 @@ Script Requirements:
 - As a user, I want the script to search for files containing a specific tag (e.g., '#a') within '~/code/notes/df' using 'rg'.
 - As a user, I want the search to match the exact tag (e.g., '#a') and not partial matches (e.g., '#abc').
 - As a user, I want the script to execute the associated command for each file found, replacing the placeholder 'FILE' with the file's absolute path.
-- As a user, I want to see status messages indicating which tag is being processed, which command is being run, and whether it succeeded or failed.
+- As a user, I want to see a clean output format showing the tag being processed and the command prefix (first word of the command).
+- As a user, I want to see a bulleted list of successfully processed files by filename only.
+- As a user, I want to see error messages only when commands fail, not success messages for every file.
 - As a user, I want to see error messages if the config file is missing, 'rg' is not installed, or a command fails.
 """
 
@@ -82,24 +84,15 @@ def run_command_on_file(command_template: str, file_path_str: str) -> tuple[bool
         quoted_path = f'"{absolute_path}"'
         command_to_run = command_template.replace("FILE", quoted_path)
 
-        print(f"  -> Running on: {pathlib.Path(file_path_str).name}")
-        print(f"     Command: {command_to_run}")
-
         result = subprocess.run(command_to_run, shell=True, capture_output=True, text=True, encoding='utf-8', check=False)
 
         if result.returncode == 0:
-            print(f"     ... Success.")
-            if result.stdout:
-                print(f"     ... Output: {result.stdout.strip()}")
             return True, ""
         else:
-            error_msg = f"     ... FAILED. Return code: {result.returncode}\n     ... Error: {result.stderr.strip()}"
-            print(error_msg, file=sys.stderr)
+            error_msg = f"Return code: {result.returncode}, Error: {result.stderr.strip()}"
             return False, error_msg
 
     except Exception as e:
-        error_msg = f"     ... FAILED. Exception: {e}"
-        print(error_msg, file=sys.stderr)
         return False, str(e)
 
 def main():
@@ -128,7 +121,11 @@ def main():
         tag = str(item['tag'])
         command_template = str(item['command'])
 
-        print(f"Processing tag: #{tag}...")
+        print(f"Processing tag: #{tag}")
+
+        # show first two Words of the command
+        command_prefix = " ".join(command_template.split()[0:2]) if command_template.split() else command_template
+        print(f"command: {command_prefix}")
 
         files, error = find_files_with_tag(tag, SEARCH_DIR)
 
@@ -141,14 +138,24 @@ def main():
             print("  No matching files found.")
             continue
 
-        print(f"  Found {len(files)} matching file(s).")
+        # Process files and collect successful ones
+        successful_files = []
         for file_path in files:
-            success, _ = run_command_on_file(command_template, file_path)
+            success, error_msg = run_command_on_file(command_template, file_path)
             if success:
+                successful_files.append(pathlib.Path(file_path).name)
                 total_actions += 1
             else:
+                print(f"Error processing {pathlib.Path(file_path).name}: {error_msg}", file=sys.stderr)
                 total_errors += 1
-        print("-" * 20)
+
+        # Print successful files in the new format
+        if successful_files:
+            print()
+            for filename in successful_files:
+                print(f"- {filename}")
+
+        print()
 
     print(f"\nAutomation complete. Total actions taken: {total_actions}. Total errors: {total_errors}.")
 
