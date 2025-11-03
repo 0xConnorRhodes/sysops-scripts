@@ -79,10 +79,11 @@ def run_command_on_file(command_template: str, file_path_str: str) -> tuple[bool
     """Runs the specified command, replacing 'FILE' with the file path."""
     try:
         absolute_path = str(pathlib.Path(file_path_str).resolve())
-        command_to_run = command_template.replace("FILE", absolute_path)
+        quoted_path = f'"{absolute_path}"'
+        command_to_run = command_template.replace("FILE", quoted_path)
 
         print(f"  -> Running on: {pathlib.Path(file_path_str).name}")
-        print(f"     Command: {command_to_run[:command_to_run.find('/') if '/' in command_to_run else len(command_to_run)]}")
+        print(f"     Command: {command_to_run}")
 
         result = subprocess.run(command_to_run, shell=True, capture_output=True, text=True, encoding='utf-8', check=False)
 

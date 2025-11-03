@@ -10,6 +10,7 @@
 - As a user, I want to use `rg` (ripgrep) for performant file scanning.
 - As a user, I want to automatically delete any file that only contains a single `#` character and optional whitespace.
 - As a user, I want to automatically delete any file that contains the string `#rm`.
+- As a user, I want to automatically delete any `*.md` files in `~/code/notes/df` that are older than 1 day and contain only markdown H1 headers (with or without text).
 - As a user, I want to run additional scripts sequentially after the pruning process.
 - As a user, I want to configure which additional scripts to run via a simple list of relative paths.
 - As a user, I want to see clear output indicating the success or failure of each script.
@@ -18,7 +19,9 @@
 
 import sys
 import subprocess
+import re
 from pathlib import Path
+from datetime import datetime, timedelta
 
 def run_additional_scripts():
     """Run additional scripts defined in ADDITIONAL_SCRIPTS."""
@@ -133,6 +136,55 @@ def prune_rm_notes():
     return True
 
 
+def prune_empty_df_notes():
+    """Remove old markdown files in ~/code/notes/df that are >1 day old and contain only H1 headers."""
+    df_dir = Path.home() / "code" / "notes" / "df"
+
+    if not df_dir.is_dir():
+        print(f"Info: Directory not found: {df_dir}")
+        return True  # Not an error if the directory doesn't exist
+
+    cutoff_time = datetime.now() - timedelta(days=1)
+    removed_files = []
+
+    # Pattern to match H1 headers: # followed by optional text
+    h1_pattern = re.compile(r'^#\s*.*$', re.MULTILINE)
+
+    for file_path in df_dir.glob("*.md"):
+        try:
+            file_mtime = datetime.fromtimestamp(file_path.stat().st_mtime)
+            if file_mtime >= cutoff_time:
+                continue
+
+            content = file_path.read_text(encoding="utf-8")
+
+            # Remove all whitespace and check if content only contains exactly one H1 header
+            lines = [line.strip() for line in content.split('\n') if line.strip()]
+
+            # Check if there's exactly one line and it's an H1 header
+            if len(lines) == 1 and h1_pattern.match(lines[0]):
+                try:
+                    file_path.unlink()
+                    removed_files.append(str(file_path))
+                except OSError as e:
+                    print(f"Error: Could not remove file {file_path}: {e}", file=sys.stderr)
+
+        except OSError as e:
+            print(f"Error: Could not read file {file_path}: {e}", file=sys.stderr)
+        except UnicodeDecodeError as e:
+            print(f"Error: Could not decode file {file_path} as UTF-8: {e}", file=sys.stderr)
+
+    if removed_files:
+        print(f"Removed {len(removed_files)} old df note(s):")
+        for file_path in removed_files:
+            filename = Path(file_path).name
+            print(f"  - {filename}")
+    else:
+        print("No old df notes were removed.")
+
+    return True
+
+
 def main():
     try:
         success = prune_rm_notes()
@@ -142,6 +194,11 @@ def main():
         # Run additional scripts after pruning
         scripts_success = run_additional_scripts()
         if not scripts_success:
+            sys.exit(1)
+
+        # Clean up old df notes
+        df_success = prune_empty_df_notes()
+        if not df_success:
             sys.exit(1)
 
     except Exception as e:
