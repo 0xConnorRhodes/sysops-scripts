@@ -1,0 +1,155 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#   "pyyaml",
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want the script to read tag-to-command mappings from '~/code/notes/zk-tag-automation.yml'.
+- As a user, I want the script to iterate through each mapping defined in the YAML file.
+- As a user, I want the script to search for files containing a specific tag (e.g., '#a') within '~/code/notes/df' using 'rg'.
+- As a user, I want the search to match the exact tag (e.g., '#a') and not partial matches (e.g., '#abc').
+- As a user, I want the script to execute the associated command for each file found, replacing the placeholder 'FILE' with the file's absolute path.
+- As a user, I want to see status messages indicating which tag is being processed, which command is being run, and whether it succeeded or failed.
+- As a user, I want to see error messages if the config file is missing, 'rg' is not installed, or a command fails.
+"""
+
+import subprocess
+import sys
+import pathlib
+import shutil
+import yaml
+
+HOME = pathlib.Path.home()
+CONFIG_FILE = HOME / "code" / "notes" / "zk-tag-automation.yml"
+SEARCH_DIR = HOME / "code" / "notes" / "df"
+
+def check_command_exists(command: str) -> bool:
+    """Checks if a command exists on the system PATH."""
+    if not shutil.which(command):
+        print(f"Error: '{command}' command not found.", file=sys.stderr)
+        print("Please install ripgrep (rg) to use this script.", file=sys.stderr)
+        return False
+    return True
+
+def load_config(config_path: pathlib.Path) -> list | None:
+    """Loads and parses the YAML configuration file."""
+    if not config_path.exists():
+        print(f"Error: Config file not found at {config_path}", file=sys.stderr)
+        return None
+
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+
+        if not isinstance(config, list):
+            print(f"Error: Config file format is invalid. Expected a top-level list.", file=sys.stderr)
+            return None
+
+        return config
+    except yaml.YAMLError as e:
+        print(f"Error parsing YAML file: {e}", file=sys.stderr)
+        return None
+    except IOError as e:
+        print(f"Error reading config file: {e}", file=sys.stderr)
+        return None
+
+def find_files_with_tag(tag: str, search_dir: pathlib.Path) -> tuple[list[str] | None, str | None]:
+    """Uses rg to find files with the given tag."""
+    search_term = f"#{tag}"
+    command = ["rg", "--word-regexp", "--files-with-matches", search_term, str(search_dir)]
+
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', check=False)
+
+        if result.returncode == 0:
+            files = result.stdout.strip().split('\n')
+            return [f for f in files if f], None
+        elif result.returncode == 1:
+            return [], None
+        else:
+            return None, f"rg error: {result.stderr.strip()}"
+
+    except Exception as e:
+        return None, f"An unexpected error occurred while running rg: {e}"
+
+def run_command_on_file(command_template: str, file_path_str: str) -> tuple[bool, str]:
+    """Runs the specified command, replacing 'FILE' with the file path."""
+    try:
+        absolute_path = str(pathlib.Path(file_path_str).resolve())
+        command_to_run = command_template.replace("FILE", absolute_path)
+
+        print(f"  -> Running on: {pathlib.Path(file_path_str).name}")
+        print(f"     Command: {command_to_run[:command_to_run.find('/') if '/' in command_to_run else len(command_to_run)]}")
+
+        result = subprocess.run(command_to_run, shell=True, capture_output=True, text=True, encoding='utf-8', check=False)
+
+        if result.returncode == 0:
+            print(f"     ... Success.")
+            if result.stdout:
+                print(f"     ... Output: {result.stdout.strip()}")
+            return True, ""
+        else:
+            error_msg = f"     ... FAILED. Return code: {result.returncode}\n     ... Error: {result.stderr.strip()}"
+            print(error_msg, file=sys.stderr)
+            return False, error_msg
+
+    except Exception as e:
+        error_msg = f"     ... FAILED. Exception: {e}"
+        print(error_msg, file=sys.stderr)
+        return False, str(e)
+
+def main():
+    if not check_command_exists("rg"):
+        sys.exit(1)
+
+    config = load_config(CONFIG_FILE)
+    if config is None:
+        sys.exit(1)
+
+    if not SEARCH_DIR.is_dir():
+        print(f"Error: Search directory not found at {SEARCH_DIR}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Loaded {len(config)} automation rules from {CONFIG_FILE}")
+    print(f"Searching in: {SEARCH_DIR}\n")
+
+    total_actions = 0
+    total_errors = 0
+
+    for item in config:
+        if not isinstance(item, dict) or 'tag' not in item or 'command' not in item:
+            print(f"Warning: Skipping invalid config item: {item}", file=sys.stderr)
+            continue
+
+        tag = str(item['tag'])
+        command_template = str(item['command'])
+
+        print(f"Processing tag: #{tag}...")
+
+        files, error = find_files_with_tag(tag, SEARCH_DIR)
+
+        if error:
+            print(f"  Error finding files: {error}", file=sys.stderr)
+            total_errors += 1
+            continue
+
+        if not files:
+            print("  No matching files found.")
+            continue
+
+        print(f"  Found {len(files)} matching file(s).")
+        for file_path in files:
+            success, _ = run_command_on_file(command_template, file_path)
+            if success:
+                total_actions += 1
+            else:
+                total_errors += 1
+        print("-" * 20)
+
+    print(f"\nAutomation complete. Total actions taken: {total_actions}. Total errors: {total_errors}.")
+
+if __name__ == "__main__":
+    main()
