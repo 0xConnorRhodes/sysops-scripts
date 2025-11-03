@@ -31,7 +31,7 @@ def run_additional_scripts():
         "process-draft-tags",
     ]
 
-    script_dir = Path(__file__).parent
+    script_dir = Path.home() / "code" / "scripts" / "pkm"
     all_success = True
 
     for script_path in ADDITIONAL_SCRIPTS:
