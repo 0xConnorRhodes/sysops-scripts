@@ -1,0 +1,95 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#   "pyyaml"
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to read a list of items (name and URL) from `~/code/notes/shopr-items.yml`.
+- As a user, I want to be presented with a list of item names using `fzf`.
+- As a user, I want to select an item name from the `fzf` list.
+- As a user, I want the script to open the URL of the selected item.
+- As a user, I want the open command to be `termux-open "URL"` if running in Termux (detected via TERMUX_APP_PID env var).
+- As a user, I want the open command to be `open -a Firefox "URL"` if running on macOS (darwin).
+- As a user, I want the script to report errors to stderr if the YAML file is missing, `fzf` is not found, or the open command fails.
+- As a user, I want the script to exit gracefully if I cancel the `fzf` selection.
+"""
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+import yaml
+
+def main():
+    """Reads YAML, prompts with fzf, and opens the selected URL."""
+    
+    yaml_file = Path.home() / "code" / "notes" / "shopr-items.yml"
+
+    if not yaml_file.exists():
+        print(f"Error: {yaml_file} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        with open(yaml_file, 'r') as f:
+            items = yaml.safe_load(f)
+        if not isinstance(items, list):
+            raise ValueError("YAML content is not a list of items.")
+    except (yaml.YAMLError, ValueError) as e:
+        print(f"Error loading or parsing {yaml_file}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    item_map = {item['name']: item['url'] for item in items if 'name' in item and 'url' in item}
+    if not item_map:
+        print(f"Error: No valid name/url pairs found in {yaml_file}.", file=sys.stderr)
+        sys.exit(1)
+
+    item_names = "\n".join(item_map.keys())
+    
+    try:
+        fzf_process = subprocess.run(
+            ['fzf'],
+            input=item_names,
+            text=True,
+            capture_output=True,
+            check=True
+        )
+        selected_name = fzf_process.stdout.strip()
+    except FileNotFoundError:
+        print("Error: 'fzf' executable not found in PATH.", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.CalledProcessError:
+        print("No item selected.", file=sys.stderr)
+        sys.exit(0)
+
+    if not selected_name:
+        print("No item selected.", file=sys.stderr)
+        sys.exit(0)
+
+    selected_url = item_map.get(selected_name)
+    if not selected_url:
+        print(f"Error: Selected item '{selected_name}' not found.", file=sys.stderr)
+        sys.exit(1)
+
+    command_args = []
+    if os.environ.get("TERMUX_APP_PID"):
+        command_args = ["termux-open", selected_url]
+    elif sys.platform == "darwin":
+        command_args = ["open", "-a", "Firefox", selected_url]
+    else:
+        print(f"Error: Unsupported platform '{sys.platform}'. No open command configured.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        subprocess.run(command_args, check=True, capture_output=True, text=True)
+    except FileNotFoundError:
+        print(f"Error: Command '{command_args[0]}' not found. Is it in your PATH?", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running command: {command_args}\n{e.stderr}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
