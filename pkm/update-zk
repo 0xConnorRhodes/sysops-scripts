@@ -20,6 +20,54 @@ import sys
 import subprocess
 from pathlib import Path
 
+def run_additional_scripts():
+    """Run additional scripts defined in ADDITIONAL_SCRIPTS."""
+    # Define scripts to run as relative paths from this script's directory
+    ADDITIONAL_SCRIPTS = [
+        "build-fp-note",
+        "process-draft-tags",
+    ]
+
+    script_dir = Path(__file__).parent
+    all_success = True
+
+    for script_path in ADDITIONAL_SCRIPTS:
+        script_full_path = script_dir / script_path
+
+        print(f"Running {script_path}...")
+
+        try:
+            result = subprocess.run(
+                [str(script_full_path)],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+
+            # Print stdout if there's any output
+            if result.stdout.strip():
+                print(result.stdout.strip())
+
+            print(f"✓ {script_path} completed successfully")
+
+        except subprocess.CalledProcessError as e:
+            print(f"✗ Error running {script_path}:", file=sys.stderr)
+            if e.stdout.strip():
+                print(f"  stdout: {e.stdout.strip()}", file=sys.stderr)
+            if e.stderr.strip():
+                print(f"  stderr: {e.stderr.strip()}", file=sys.stderr)
+            all_success = False
+
+        except FileNotFoundError:
+            print(f"✗ Error: Script not found at {script_full_path}", file=sys.stderr)
+            all_success = False
+
+        except Exception as e:
+            print(f"✗ Unexpected error running {script_path}: {e}", file=sys.stderr)
+            all_success = False
+
+    return all_success
+
 def prune_rm_notes():
     """Remove notes that contain #rm tag or only contain a single # character."""
     target_dir = Path.home() / "code" / "notes"
@@ -84,53 +132,6 @@ def prune_rm_notes():
 
     return True
 
-def run_additional_scripts():
-    """Run additional scripts defined in ADDITIONAL_SCRIPTS."""
-    # Define scripts to run as relative paths from this script's directory
-    ADDITIONAL_SCRIPTS = [
-        "build-fp-note",
-        "process-draft-tags",
-    ]
-
-    script_dir = Path(__file__).parent
-    all_success = True
-
-    for script_path in ADDITIONAL_SCRIPTS:
-        script_full_path = script_dir / script_path
-
-        print(f"Running {script_path}...")
-
-        try:
-            result = subprocess.run(
-                [str(script_full_path)],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-
-            # Print stdout if there's any output
-            if result.stdout.strip():
-                print(result.stdout.strip())
-
-            print(f"✓ {script_path} completed successfully")
-
-        except subprocess.CalledProcessError as e:
-            print(f"✗ Error running {script_path}:", file=sys.stderr)
-            if e.stdout.strip():
-                print(f"  stdout: {e.stdout.strip()}", file=sys.stderr)
-            if e.stderr.strip():
-                print(f"  stderr: {e.stderr.strip()}", file=sys.stderr)
-            all_success = False
-
-        except FileNotFoundError:
-            print(f"✗ Error: Script not found at {script_full_path}", file=sys.stderr)
-            all_success = False
-
-        except Exception as e:
-            print(f"✗ Unexpected error running {script_path}: {e}", file=sys.stderr)
-            all_success = False
-
-    return all_success
 
 def main():
     try:
