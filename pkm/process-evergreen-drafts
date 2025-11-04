@@ -1,0 +1,211 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to scan all `*.md` files located in `~/code/notes/df`.
+- As a user, I want to use `ripgrep` (rg) to find files that contain `#e` as a distinct word (not as part of another word like `#e123`).
+- As a user, for each matched file, I want to check for a renaming rule.
+- As a user, if the file has an H1 header on the first line (e.g., "# My Title"), I want the new filename to be the cleaned H1 text (e.g., "My Title.md").
+- As a user, if the file has no H1 but has `#e` on the *second* line, I want the new filename to be the cleaned text of the *first* line.
+- As a user, I want the cleaning process to remove any character that is not an uppercase letter (A-Z), lowercase letter (a-z), number (0-9), space ( ), hyphen (-), or underscore (_).
+- As a user, I want the processed files to be moved to `~/code/notes` with their new filename.
+- As a user, after a file is successfully moved, I want the script to remove all occurrences of the whole-word tag `#e` from its content.
+- As a user, if a file matches `#e` but does not meet either renaming rule, I want a message printed to the terminal and the file left unmodified.
+- As a user, I want to be notified if the target file already exists, and the script should skip moving the file to prevent overwriting.
+- As a user, I want to be notified if `ripgrep` (rg) is not installed.
+"""
+
+import subprocess
+import re
+import sys
+import shutil
+from pathlib import Path
+
+# --- Configuration ---
+
+# The directory to scan for markdown files
+SOURCE_DIR = Path.home() / "code" / "notes" / "df"
+
+# The directory to move matched files into
+TARGET_DIR = Path.home() / "code" / "notes"
+
+# The exact word to search for
+SEARCH_TERM = '#e'
+
+# Regex to strip unwanted characters from filenames.
+# Allows a-z, A-Z, 0-9, space, underscore, and hyphen.
+FILENAME_CLEAN_PATTERN = re.compile(r'[^a-zA-Z0-9 _-]+')
+
+# Regex to remove the search term (as a whole word) from the file content
+REMOVAL_PATTERN = re.compile(r'\b#e\b')
+
+# --- End Configuration ---
+
+
+def check_ripgrep_installed():
+    """Checks if 'rg' (ripgrep) is available on the system PATH."""
+    if not shutil.which("rg"):
+        print(
+            "Error: 'ripgrep' (rg) is not installed or not in your PATH.",
+            file=sys.stderr
+        )
+        print("Please install it to continue: https://github.com/BurntSushi/ripgrep", file=sys.stderr)
+        return False
+    return True
+
+
+def find_matching_files():
+    """Uses ripgrep to find files containing the search term."""
+    cmd = [
+        "rg",
+        "-w",                     # Match as a whole word
+        "--files-with-matches",   # Only list files that match
+        "--glob", "*.md",         # Only search markdown files
+        SEARCH_TERM,
+        str(SOURCE_DIR)
+    ]
+    
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,  # Don't raise error on non-zero exit
+            encoding="utf-8"
+        )
+        
+        if result.returncode == 0:
+            # Matches found
+            return result.stdout.strip().split('\n')
+        elif result.returncode == 1:
+            # No matches found
+            return []
+        else:
+            # An error occurred
+            print(f"Error running ripgrep:\n{result.stderr}", file=sys.stderr)
+            return None
+            
+    except FileNotFoundError:
+        print("Error: 'rg' command not found.", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred while running ripgrep: {e}", file=sys.stderr)
+        return None
+
+
+def clean_filename(text):
+    """Removes specified unwanted characters from a string."""
+    # Strip leading/trailing whitespace first to avoid weird filenames
+    text = text.strip()
+    return FILENAME_CLEAN_PATTERN.sub('', text)
+
+
+def process_file(file_path_str):
+    """
+    Analyzes a file and moves it if it matches the specified criteria.
+    """
+    file_path = Path(file_path_str)
+    
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        lines = content.splitlines()
+
+        if not lines:
+            print(f"Skipping empty file: {file_path.name}")
+            return
+
+        first_line = lines[0].strip()
+        second_line = lines[1].strip() if len(lines) > 1 else ""
+        
+        new_filename_base = None
+        
+        # Logic 1: H1 header
+        if first_line.startswith("# "):
+            new_filename_base = first_line[2:].strip()
+            
+        # Logic 2: #e on second line
+        elif second_line == "#e":
+            new_filename_base = first_line.strip()
+            
+        # If a rule matched, process the file
+        if new_filename_base:
+            cleaned_name = clean_filename(new_filename_base)
+            
+            if not cleaned_name:
+                print(f"Could not generate valid filename from '{new_filename_base}' for file: {file_path.name}")
+                return
+
+            new_filename = f"{cleaned_name}.md"
+            new_file_path = TARGET_DIR / new_filename
+            
+            # Check for collisions
+            if new_file_path.exists():
+                print(f"Skipping: Target file already exists {new_file_path}")
+                return
+                
+            # Move the file
+            try:
+                file_path.rename(new_file_path)
+                print(f"Moved: {file_path.name} -> {new_file_path.name}")
+                
+                # Now, remove the #e tag from the new file
+                try:
+                    # We use the original 'content' variable we already read
+                    modified_content = REMOVAL_PATTERN.sub('', content)
+                    
+                    new_file_path.write_text(modified_content, encoding="utf-8")
+                    print(f"Removed '{SEARCH_TERM}' tag from {new_file_path.name}")
+
+                except Exception as read_write_e:
+                    print(f"Error: Moved file {new_file_path.name} but could not remove tag: {read_write_e}", file=sys.stderr)
+                    
+            except Exception as move_e:
+                print(f"Error moving file {file_path.name}: {move_e}", file=sys.stderr)
+                
+        else:
+            # No rule matched
+            print(f"Skipping: {file_path.name} (matched '#e' but not renaming criteria)")
+            
+    except Exception as e:
+        print(f"Error processing file {file_path.name}: {e}", file=sys.stderr)
+
+
+def main():
+    if not check_ripgrep_installed():
+        sys.exit(1)
+
+    if not SOURCE_DIR.is_dir():
+        print(f"Error: Source directory not found: {SOURCE_DIR}", file=sys.stderr)
+        sys.exit(1)
+
+    # Ensure target directory exists
+    TARGET_DIR.mkdir(parents=True, exist_ok=True)
+
+    print(f"Scanning for '{SEARCH_TERM}' in {SOURCE_DIR}...")
+    matched_files = find_matching_files()
+    
+    if matched_files is None:
+        print("Exiting due to ripgrep error.")
+        sys.exit(1)
+        
+    if not matched_files:
+        print("No files found containing the term '#e'.")
+        return
+
+    print(f"Found {len(matched_files)} matching files. Processing...")
+    print("-" * 30)
+    
+    for file_path_str in matched_files:
+        if file_path_str: # Avoid potential empty lines
+            process_file(file_path_str)
+            
+    print("-" * 30)
+    print("Script finished.")
+
+
+if __name__ == "__main__":
+    main()
