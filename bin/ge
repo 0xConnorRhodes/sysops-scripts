@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# 1. Find all non-hidden files (fd's default)
+# 2. Pipe them into fzf for selection
+# 3. Store the selection in a variable
+selected_file=$(fd --type f . | fzf)
+
+# 4. If the variable is not empty (i.e., user didn't cancel),
+#    open the selected file with 'code'.
+if [[ -n "$selected_file" ]]; then
+    ~/.nix-profile/bin/code "$selected_file"
+fi
