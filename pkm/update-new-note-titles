@@ -1,0 +1,65 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to scan all '*.md' files directly in the '~/code/notes' directory, ignoring subdirectories.
+- As a user, I want to find files where the first line of content is exactly identical to the file's basename (e.g., 'python csv.md').
+- As a user, I want to alter the first line of matched files to be a Markdown H1.
+- As a user, I want this new H1 line to be title-cased and have the '.md' suffix removed (e.g., 'python csv.md' becomes '# Python Csv').
+- As a user, I want the script to preserve the rest of the file's content.
+"""
+
+import sys
+from pathlib import Path
+
+NOTES_DIR = Path.home() / "code" / "notes"
+
+def process_file(file_path: Path):
+    """
+    Reads a file, checks if the first line matches the basename,
+    and if so, rewrites the first line as a title-cased H1.
+    """
+    file_basename = file_path.name
+    
+    try:
+        with file_path.open("r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        if not lines:
+            return
+
+        first_line = lines[0].strip()
+
+        if first_line == file_basename:
+            name_without_suffix = file_basename.removesuffix(".md")
+            title_cased_name = name_without_suffix.title()
+            new_first_line = f"# {title_cased_name}\n"
+
+            lines[0] = new_first_line
+
+            with file_path.open("w", encoding="utf-8") as f:
+                f.writelines(lines)
+            
+            print(f"Updated: {file_path.name}")
+
+    except Exception as e:
+        print(f"Error processing {file_path.name}: {e}", file=sys.stderr)
+
+def main():
+    """
+    Main function to find and process markdown files.
+    """
+    if not NOTES_DIR.is_dir():
+        print(f"Error: Directory not found: {NOTES_DIR}", file=sys.stderr)
+        sys.exit(1)
+
+    for file_path in NOTES_DIR.glob("*.md"):
+        if file_path.is_file():
+            process_file(file_path)
+
+if __name__ == "__main__":
+    main()

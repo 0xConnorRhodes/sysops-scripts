@@ -29,6 +29,7 @@ def run_additional_scripts():
     ADDITIONAL_SCRIPTS = [
         "build-fp-note",
         "process-draft-tags",
+        "update-new-note-titles",
     ]
 
     script_dir = Path.home() / "code" / "scripts" / "pkm"
