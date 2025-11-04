@@ -1,4 +1,5 @@
 #!/bin/sh
+# graphical edit
 
 # 1. Find all non-hidden files (fd's default)
 # 2. Pipe them into fzf for selection
