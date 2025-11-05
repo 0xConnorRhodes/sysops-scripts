@@ -62,12 +62,12 @@ class TaskCreator
   end
 
   def render_file_content task_data, task_meta
-    file_lines = ["# meta\n", 
-                  "\n", 
-                  "# info\n", 
-                  "\n\n", 
-                  "# mtks\n", 
-                  "- [ ] \n", 
+    file_lines = ["# meta\n",
+                  "\n",
+                  "# info\n",
+                  "\n\n",
+                  "# mtks\n",
+                  "- [ ] \n",
                   "\n"]
 
     if task_meta[:tags].include?("# ")
@@ -76,16 +76,19 @@ class TaskCreator
       file_lines.insert(1, "- tags: #{task_meta[:tags].join(', ')}\n")
     end
 
+    # Add started_date with today's date in %y%m%d format
+    file_lines.insert(2, "- started_date: #{Date.today.strftime('%y%m%d')}\n")
+
     if task_meta[:projects].any?
-      file_lines.insert(2, "- project: #{task_meta[:projects].join(', ')}\n")
+      file_lines.insert(3, "- project: #{task_meta[:projects].join(', ')}\n")
     end
 
     if task_data[:start_date]
-      file_lines.insert(2, "- start_date: #{task_data[:start_date]}\n")
+      file_lines.insert(3, "- start_date: #{task_data[:start_date]}\n")
     end
 
     if task_data[:due_date]
-      file_lines.insert(2, "- due_date: #{task_data[:due_date]}\n")
+      file_lines.insert(3, "- due_date: #{task_data[:due_date]}\n")
     end
 
     file_lines.join()
