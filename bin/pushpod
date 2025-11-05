@@ -9,33 +9,25 @@ fi
 # Join all arguments with spaces to handle filenames with spaces
 TARGET="$*"
 
-# Check if target exists
 if [ ! -e "$TARGET" ]; then
     echo "Error: '$TARGET' does not exist" >&2
     exit 1
 fi
 
-# Remote base path
-#REMOTE_BASE="/scary/phone/audiobooks/mpods"
 REMOTE_BASE="/scary/audiobooks/shelf/casts/articles"
 
 if [ -f "$TARGET" ]; then
-    # Handle file upload
     echo "Uploading file: $TARGET"
 
     # Extract basename and filename without extension
     BASENAME=$(basename "$TARGET")
-    DIRNAME=$(basename "$TARGET" | sed 's/\.[^.]*$//' | tr ' ' '_')
+    DIRNAME=$(basename "$TARGET" | sed 's/\.[^.]*$//' | tr ' ' '_' | tr -d "'")
 
     # Remote paths for file
     REMOTE_DIR="$REMOTE_BASE/$DIRNAME"
-    REMOTE_FILE="$REMOTE_DIR/$BASENAME"
-
-    # Create remote directory
-    ssh m "mkdir -p '$REMOTE_DIR'"
 
     # Upload file using rsync
-    if rsync -v "$TARGET" "m:$REMOTE_FILE"; then
+    if rsync -v "$TARGET" "m:$(printf '%q' "$REMOTE_DIR/$BASENAME")"; then
         echo "Upload successful. Deleting local file..."
         rm "$TARGET"
         echo "Local file deleted."
@@ -48,11 +40,9 @@ elif [ -d "$TARGET" ]; then
     # Handle folder upload
     echo "Uploading folder: $TARGET"
 
-    # Extract folder name
-    FOLDER_NAME=$(basename "$TARGET" | tr ' ' '_')
+    FOLDER_NAME=$(basename "$TARGET" | tr ' ' '_' | tr -d "'")
     REMOTE_FOLDER="$REMOTE_BASE/$FOLDER_NAME"
 
-    # Upload folder using rsync (with trailing slash to upload contents into the directory)
     if rsync -av "$TARGET/" "m:$REMOTE_FOLDER/"; then
         echo "Upload successful. Deleting local folder..."
         rm -rf "$TARGET"
