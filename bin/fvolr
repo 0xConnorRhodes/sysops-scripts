@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+INFILE="$1"
+DIR=$(dirname "$INFILE")
+BASENAME=$(basename "$INFILE")
+FILENAME="${BASENAME%.*}"
+EXTENSION="${BASENAME##*.}"
+
+if [ "$FILENAME" = "$BASENAME" ]; then
+    OUTFILE="${DIR}/${FILENAME}-q"
+else
+    OUTFILE="${DIR}/${FILENAME}-q.${EXTENSION}"
+fi
+
+echo "Processing: $INFILE -> $OUTFILE"
+
+ffmpeg -i "$INFILE" -c:v copy -filter:a 'volume=0.04' "$OUTFILE"
