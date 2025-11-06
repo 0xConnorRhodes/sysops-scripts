@@ -1,0 +1,22 @@
+set -e
+
+echo "This script will update system packages and enable SSH password authentication."
+echo "You will be prompted for your sudo password once."
+
+sudo bash -s <<'EOF'
+set -e
+
+echo "--- [SUDO] Starting system update (dnf update) ---"
+dnf update -y
+echo "--- [SUDO] System update complete ---"
+
+echo "--- [SUDO] Configuring SSH for password authentication ---"
+sed -i 's/^#?PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+systemctl enable sshd
+systemctl restart sshd
+
+echo "--- [SUDO] SSH configuration updated and service restarted ---"
+echo "--- Setup complete. Password authentication for SSH is now enabled. ---"
+EOF
+
