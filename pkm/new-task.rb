@@ -15,7 +15,7 @@ class TaskCreator
   end
 
   def create_task_file task_name:, file_content:
-    file_name = "tk_#{task_name}.md"
+    file_name = "tk #{task_name}.md"
     file_path = File.join(@notes_folder, file_name)
     File.open(file_path, 'w') do |f|
       f.puts file_content
