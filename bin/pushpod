@@ -1,58 +1,100 @@
-#!/usr/bin/env sh
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to provide a local file path as a command-line argument.
+- As a user, I want to define a customizable string of characters to be stripped
+  from the filename.
+- As a user, I want the script to create a sanitized destination filename by
+  removing those characters.
+- As a user, I want the script to transfer the file to the destination directory
+  'm:/scary/audiobooks/shelf/casts/articles' using rsync.
+- As a user, I want the local source file to be deleted *only if* the rsync
+  transfer is successful.
+- As a user, I want to see an error message if the transfer fails, and the
+  local file should not be deleted.
+"""
 
-# Check if file/folder argument is provided
-if [ $# -eq 0 ]; then
-    echo "Usage: $0 <file|folder>" >&2
-    exit 1
-fi
+import sys
+import subprocess
+from pathlib import Path
 
-# Join all arguments with spaces to handle filenames with spaces
-TARGET="$*"
+# --- User Configuration ---
 
-if [ ! -e "$TARGET" ]; then
-    echo "Error: '$TARGET' does not exist" >&2
-    exit 1
-fi
+# The destination directory for the rsync transfer
+DESTINATION_DIR = Path("m:/scary/audiobooks/shelf/casts/articles")
 
-REMOTE_BASE="/scary/audiobooks/shelf/casts/articles"
+# Characters to remove from the destination filename
+CHARS_TO_STRIP = "[]()+?"
 
-if [ -f "$TARGET" ]; then
-    echo "Uploading file: $TARGET"
+# --- End Configuration ---
 
-    # Extract basename and filename without extension
-    BASENAME=$(basename "$TARGET")
-    DIRNAME=$(basename "$TARGET" | sed 's/\.[^.]*$//' | tr ' ' '_' | tr -d "'")
 
-    # Remote paths for file
-    REMOTE_DIR="$REMOTE_BASE/$DIRNAME"
+def main():
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <file_to_transfer>", file=sys.stderr)
+        sys.exit(1)
 
-    # Upload file using rsync
-    if rsync -v "$TARGET" "m:$(printf '%q' "$REMOTE_DIR/$BASENAME")"; then
-        echo "Upload successful. Deleting local file..."
-        rm "$TARGET"
-        echo "Local file deleted."
-    else
-        echo "Upload failed. Local file preserved." >&2
-        exit 1
-    fi
+    source_file = Path(sys.argv[1])
 
-elif [ -d "$TARGET" ]; then
-    # Handle folder upload
-    echo "Uploading folder: $TARGET"
+    if not source_file.is_file():
+        print(f"Error: File not found at '{source_file}'", file=sys.stderr)
+        sys.exit(1)
 
-    FOLDER_NAME=$(basename "$TARGET" | tr ' ' '_' | tr -d "'")
-    REMOTE_FOLDER="$REMOTE_BASE/$FOLDER_NAME"
+    translation_table = str.maketrans("", "", CHARS_TO_STRIP)
+    sanitized_name = source_file.name.translate(translation_table)
+    destination_file = DESTINATION_DIR / sanitized_name
 
-    if rsync -av "$TARGET/" "m:$REMOTE_FOLDER/"; then
-        echo "Upload successful. Deleting local folder..."
-        rm -rf "$TARGET"
-        echo "Local folder deleted."
-    else
-        echo "Upload failed. Local folder preserved." >&2
-        exit 1
-    fi
+    rsync_command = [
+        "rsync",
+        str(source_file),
+        str(destination_file)
+    ]
 
-else
-    echo "Error: '$TARGET' is neither a file nor a directory" >&2
-    exit 1
-fi
+    print(f"Attempting to transfer:\n  From: {source_file}\n  To:   {destination_file}")
+
+    try:
+        result = subprocess.run(
+            rsync_command,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding='utf-8'
+        )
+
+        print("\nTransfer successful.")
+        if result.stdout:
+            print("rsync output:\n", result.stdout)
+
+        try:
+            source_file.unlink()
+            print(f"Removed local file: {source_file}")
+        except OSError as e:
+            print(f"Warning: Transfer succeeded, but failed to remove local file '{source_file}': {e}", file=sys.stderr)
+
+    except subprocess.CalledProcessError as e:
+        print(f"\nError: rsync transfer failed (Exit Code: {e.returncode}).", file=sys.stderr)
+        print("Local file was NOT removed.", file=sys.stderr)
+        if e.stdout:
+            print(f"rsync stdout:\n{e.stdout}", file=sys.stderr)
+        if e.stderr:
+            print(f"rsync stderr:\n{e.stderr}", file=sys.stderr)
+        sys.exit(e.returncode)
+
+    except FileNotFoundError:
+        print("Error: 'rsync' command not found.", file=sys.stderr)
+        print("Please ensure rsync is installed and in your system's PATH.", file=sys.stderr)
+        print("Local file was NOT removed.", file=sys.stderr)
+        sys.exit(1)
+    
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}", file=sys.stderr)
+        print("Local file was NOT removed.", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
