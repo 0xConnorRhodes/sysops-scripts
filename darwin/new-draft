@@ -1,0 +1,42 @@
+#!/Users/connor.rhodes/.nix-profile/bin/uv run --script
+#
+# Encoding: utf-8
+#
+# @raycast.title New Draft
+# @raycast.author Connor Rhodes
+# @raycast.description create and open new draft
+# @raycast.mode silent
+#
+# @raycast.schemaVersion 1
+#
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to generate a filename based on the current timestamp in 'yymmddHHMMSS.md' format.
+- As a user, I want to create this file in the '~/code/notes/df' directory, ensuring the directory exists.
+- As a user, I want the new file to have the initial content '# '.
+- As a user, I want the script to open the newly created file using the '~/.nix-profile/bin/code' executable.
+"""
+
+import subprocess
+from datetime import datetime
+from pathlib import Path
+
+timestamp = datetime.now().strftime("%y%m%d%H%M%S")
+filename = f"{timestamp}.md"
+
+target_dir = Path.home() / "code" / "notes" / "df"
+file_path = target_dir / filename
+
+initial_content = "# "
+editor_path = Path.home() / ".nix-profile" / "bin" / "code"
+
+target_dir.mkdir(parents=True, exist_ok=True)
+
+file_path.write_text(initial_content)
+
+subprocess.run([editor_path, file_path])
