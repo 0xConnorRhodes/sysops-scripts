@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -e
+pushd ~/code/audio-dispatch
+cd /Users/connor.rhodes/code/audio-dispatch
+uv run main.py
+popd
