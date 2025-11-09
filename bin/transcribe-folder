@@ -1,0 +1,71 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#   "parakeet-mlx",
+#   "tqdm"
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to find every .m4a and .mp3 file in the current directory.
+- As a user, I want to use the 'parakeet-mlx' command-line tool for transcription.
+- As a user, I want all output transcripts to be placed in a 'transcripts/' subfolder.
+- As a user, I want the script to create the 'transcripts/' folder if it doesn't already exist.
+- As a user, I want each output file to be a .txt file.
+- As a user, I want the output filename to match the input filename's base (e.g., 'audio.mp3' -> 'transcripts/audio.txt').
+- As a user, I want to see a progress bar showing which files are being processed.
+"""
+
+import subprocess
+import sys
+from pathlib import Path
+from tqdm import tqdm
+
+def main():
+    output_dir = Path("transcripts")
+    output_dir.mkdir(exist_ok=True)
+
+    current_dir = Path.cwd()
+    audio_files = list(current_dir.glob("*.m4a")) + list(current_dir.glob("*.mp3"))
+
+    if not audio_files:
+        print("No .m4a or .mp3 files found in the current directory.")
+        sys.exit(0)
+
+    print(f"Found {len(audio_files)} audio files. Starting transcription...")
+
+    for audio_file in tqdm(audio_files, desc="Transcribing audio", unit="file", ncols=100):
+        
+        cmd = [
+            "parakeet-mlx",
+            "--output-format", "txt",
+            "--output-dir", str(output_dir.resolve()),
+            str(audio_file.resolve())
+        ]
+        
+        try:
+            # capture output to prevent parakeet's own
+            # progress from interfering with the tqdm bar.
+            subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8"
+            )
+            
+        except subprocess.CalledProcessError as e:
+            tqdm.write(f"\n[Error] Failed to process {audio_file.name}:")
+            tqdm.write(f"  STDERR: {e.stderr.strip()}")
+        except FileNotFoundError:
+            tqdm.write("\n[Error] 'parakeet-mlx' command not found.")
+            tqdm.write("  Please ensure 'parakeet-mlx' is installed via 'uv pip install parakeet-mlx'.")
+            sys.exit(1)
+        except Exception as e:
+            tqdm.write(f"\n[Error] An unexpected error occurred with {audio_file.name}: {e}")
+
+    print(f"\nTranscription complete. Transcripts saved in: {output_dir.resolve()}")
+
+if __name__ == "__main__":
+    main()
