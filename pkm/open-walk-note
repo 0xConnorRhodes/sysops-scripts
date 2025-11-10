@@ -1,3 +1,3 @@
-#!/usr/bin/env sh
+#!/bin/zsh
 
-$HOME/.nix-profile/bin/code ~/code/notes/walk.md
+$HOME/.nix-profile/bin/code $HOME/code/notes/walk.md
