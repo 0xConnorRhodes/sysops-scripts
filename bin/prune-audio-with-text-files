@@ -1,0 +1,67 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to scan the current directory for all files.
+- As a user, I want to identify all audio files (specifically .m4a and .aac) that have an accompanying .txt file with the exact same basename.
+- As a user, I want to move only the identified audio files (the .m4a and .aac ones) to the trash, using the `/usr/bin/trash` utility on macOS.
+- As a user, I want to keep the corresponding .txt files.
+- As a user, I want to ignore and keep any audio files that do not have a matching .txt file.
+"""
+
+import subprocess
+import sys
+from pathlib import Path
+
+def main():
+    """
+    Finds audio files with matching .txt files and moves the audio file to trash
+    using the macOS /usr/bin/trash utility.
+    """
+    AUDIO_EXTENSIONS = {".m4a", ".aac"}
+    TRASH_COMMAND = "/usr/bin/trash"
+    current_dir = Path(".")
+    files_trashed = 0
+
+    if not Path(TRASH_COMMAND).exists():
+        print(
+            f"Error: '{TRASH_COMMAND}' utility not found.",
+            file=sys.stderr
+        )
+        print(
+            "This script is designed for macOS and requires this utility.",
+            file=sys.stderr
+        )
+        sys.exit(1)
+
+    print(f"Scanning for audio files with matching .txt files (using {TRASH_COMMAND})...")
+
+    for audio_file in current_dir.iterdir():
+        if not audio_file.is_file() or audio_file.suffix not in AUDIO_EXTENSIONS:
+            continue
+
+        txt_file = audio_file.with_suffix(".txt")
+
+        if txt_file.exists() and txt_file.is_file():
+            try:
+                subprocess.run(
+                    [TRASH_COMMAND, str(audio_file)],
+                    check=True,
+                    capture_output=True
+                )
+                print(f"  Trashed: {audio_file.name}")
+                files_trashed += 1
+            except subprocess.CalledProcessError as e:
+                print(
+                    f"Error trashing {audio_file.name}: {e.stderr.decode()}",
+                    file=sys.stderr
+                )
+
+    print(f"\nScan complete. Total audio files trashed: {files_trashed}")
+
+if __name__ == "__main__":
+    main()
