@@ -8,7 +8,9 @@
 # ///
 """
 Script Requirements:
-- As a user, I want to find every .m4a and .mp3 file in the current directory.
+- As a user, I want to find audio files with customizable extensions in the current directory.
+- As a user, I want to be able to modify the SUPPORTED_EXTENSIONS list to add or remove file types.
+- As a user, I want the script to support .m4a, .mp3, and .aac files by default.
 - As a user, I want to use the 'parakeet-mlx' command-line tool for transcription.
 - As a user, I want all output transcripts to be placed in a 'transcripts/' subfolder.
 - As a user, I want the script to create the 'transcripts/' folder if it doesn't already exist.
@@ -22,28 +24,33 @@ import sys
 from pathlib import Path
 from tqdm import tqdm
 
+SUPPORTED_EXTENSIONS = ["m4a", "mp3", "aac"]
+
 def main():
     output_dir = Path("transcripts")
     output_dir.mkdir(exist_ok=True)
 
     current_dir = Path.cwd()
-    audio_files = list(current_dir.glob("*.m4a")) + list(current_dir.glob("*.mp3"))
+    audio_files = []
+    for ext in SUPPORTED_EXTENSIONS:
+        audio_files.extend(current_dir.glob(f"*.{ext}"))
 
     if not audio_files:
-        print("No .m4a or .mp3 files found in the current directory.")
+        extensions_list = ", ".join(f".{ext}" for ext in SUPPORTED_EXTENSIONS)
+        print(f"No audio files found with supported extensions: {extensions_list}")
         sys.exit(0)
 
     print(f"Found {len(audio_files)} audio files. Starting transcription...")
 
     for audio_file in tqdm(audio_files, desc="Transcribing audio", unit="file", ncols=100):
-        
+
         cmd = [
             "parakeet-mlx",
             "--output-format", "txt",
             "--output-dir", str(output_dir.resolve()),
             str(audio_file.resolve())
         ]
-        
+
         try:
             # capture output to prevent parakeet's own
             # progress from interfering with the tqdm bar.
@@ -54,7 +61,7 @@ def main():
                 text=True,
                 encoding="utf-8"
             )
-            
+
         except subprocess.CalledProcessError as e:
             tqdm.write(f"\n[Error] Failed to process {audio_file.name}:")
             tqdm.write(f"  STDERR: {e.stderr.strip()}")
