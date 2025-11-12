@@ -1,0 +1,186 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to set a source folder (default: ~/Desktop) at the top of the script.
+- As a user, I want to list files in the source folder, ignoring directories and hidden files.
+- As a user, I want the file to be selected automatically if only one file exists when the script starts.
+- As a user, I want to select a file using fzf if multiple files exist.
+- As a user, I want the script to loop, showing fzf again, if multiple files were present.
+- As a user, I want fzf to be shown even if only one file remains in the loop, per the requirements.
+- As a user, I want the selected file to be renamed on the destination.
+- As a user, I want the new filename to be prefixed with the 'yymmdd' date.
+- As a user, I want the new filename to be lowercased.
+- As a user, I want spaces in the filename replaced with hyphens.
+- As a user, I want punctuation and special characters (like []() and emoji) removed.
+- As a user, I want the file transferred to 'm:/zstore/static_files/s2_files' using rsync.
+- As a user, I want the local file moved to the trash using 'trash' upon successful transfer.
+- As a user, I want a markdown link '[](https://s2.connorrhodes.com/NEW_FILENAME)' copied to my clipboard using 'pbcopy'.
+"""
+
+import sys
+import re
+import subprocess
+import datetime
+from pathlib import Path
+
+# --- Configuration ---
+SOURCE_DIR = Path.home() / "Desktop"
+REMOTE_DEST_BASE = "m:/zstore/static_files/s2_files"
+REMOTE_URL_BASE = "https://s2.connorrhodes.com"
+# ---------------------
+
+
+def sanitize_filename(original_path: Path, date_prefix: str) -> str:
+    """Sanitizes and renames a file according to the specific rules."""
+    stem = original_path.stem
+    ext = original_path.suffix
+
+    sanitized_stem = stem.lower()
+    sanitized_stem = re.sub(r'[^a-z0-9\s]', '', sanitized_stem)
+    sanitized_stem = re.sub(r'\s+', '-', sanitized_stem).strip('-')
+    sanitized_stem = re.sub(r'-+', '-', sanitized_stem)
+
+    # 5. Handle empty stem (e.g., if filename was just "().jpg")
+    if not sanitized_stem:
+        sanitized_stem = "file"
+
+    new_filename = f"{date_prefix}-{sanitized_stem}{ext}"
+    return new_filename
+
+
+def select_file_fzf(file_paths: list[Path]) -> str | None:
+    """Displays fzf for file selection and returns the selected filename."""
+    file_names = [f.name for f in file_paths]
+    fzf_input = "\n".join(file_names)
+
+    try:
+        result = subprocess.run(
+            ['fzf'],
+            input=fzf_input,
+            capture_output=True,
+            text=True,
+            encoding='utf-8'
+        )
+        # fzf returns 0 on success, 1 on no match, 130 on cancel
+        if result.returncode == 0:
+            return result.stdout.strip()
+        else:
+            print("fzf selection cancelled.")
+            return None
+    except FileNotFoundError:
+        print("Error: 'fzf' command not found. Please install it.", file=sys.stderr)
+        sys.exit(1)
+
+
+def run_command(cmd_list: list[str], command_name: str) -> bool:
+    """Runs a simple command and returns True on success, False on failure."""
+    try:
+        subprocess.run(
+            cmd_list,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding='utf-8'
+        )
+        return True
+    except FileNotFoundError:
+        print(f"Error: '{command_name}' not found. Is it installed and in your PATH?", file=sys.stderr)
+        return False
+    except subprocess.CalledProcessError as e:
+        print(f"Error running: {' '.join(cmd_list)}", file=sys.stderr)
+        print(f"STDERR: {e.stderr}", file=sys.stderr)
+        return False
+
+
+def copy_to_clipboard(text: str):
+    """Copies the given text to the system clipboard using pbcopy."""
+    try:
+        subprocess.run(
+            ['pbcopy'],
+            input=text,
+            text=True,
+            encoding='utf-8',
+            check=True
+        )
+        print(f"Copied to clipboard: {text}")
+    except FileNotFoundError:
+        print("Error: 'pbcopy' not found. This script is intended for macOS.", file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        print(f"Error copying to clipboard: {e.stderr}", file=sys.stderr)
+
+
+def process_file(file_path: Path):
+    """Handles the renaming, rsync, trash, and pbcopy logic for a file."""
+    print(f"Processing: {file_path.name}")
+
+    date_str = datetime.datetime.now().strftime("%y%m%d")
+    new_filename = sanitize_filename(file_path, date_str)
+
+    remote_path = f"{REMOTE_DEST_BASE}/{new_filename}"
+    remote_url = f"{REMOTE_URL_BASE}/{new_filename}"
+    clipboard_content = f"[]({remote_url})"
+
+    print(f"Uploading to {remote_path}...")
+    rsync_cmd = ['rsync', '-avh', '--progress', str(file_path), remote_path]
+    if not run_command(rsync_cmd, "rsync"):
+        print("rsync failed. Aborting processing for this file.")
+        return
+
+    print(f"Moving {file_path.name} to trash...")
+    trash_cmd = ['trash', str(file_path)]
+    if not run_command(trash_cmd, "trash"):
+        print("trash command failed, but upload succeeded.")
+
+    copy_to_clipboard(clipboard_content)
+    print("---")
+
+
+def get_files_in_dir(directory: Path) -> list[Path]:
+    """Returns a list of files in a directory, ignoring subdirs and hidden files."""
+    if not directory.is_dir():
+        print(f"Error: Source directory not found: {directory}", file=sys.stderr)
+        sys.exit(1)
+
+    return [f for f in directory.glob('*') if f.is_file() and not f.name.startswith('.')]
+
+
+def main():
+    src_dir = SOURCE_DIR.expanduser()
+    files = get_files_in_dir(src_dir)
+
+    if not files:
+        print(f"No files found in {src_dir}.")
+        return
+
+    if len(files) == 1:
+        print("Only one file found, processing automatically.")
+        process_file(files[0])
+    else:
+        print(f"Multiple files found. Starting interactive selection...")
+        while True:
+            current_files = get_files_in_dir(src_dir)
+            if not current_files:
+                print("No more files to process. Exiting.")
+                break
+
+            selected_name = select_file_fzf(current_files)
+
+            if not selected_name:
+                break
+
+            selected_path = src_dir / selected_name
+
+            if not selected_path.exists():
+                print(f"Warning: Selected file {selected_name} no longer exists. Refreshing...")
+                continue
+
+            process_file(selected_path)
+
+
+if __name__ == "__main__":
+    main()
