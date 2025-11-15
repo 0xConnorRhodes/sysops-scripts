@@ -1,6 +1,5 @@
 require 'fileutils'
 require 'fzf'
-require 'date'
 
 
 class TaskMover
@@ -26,7 +25,7 @@ class TaskMover
 
     exit(0) if chosen.include? 'q'
 
-    file_date = Date.today.strftime('%y%m%d').to_s
+    file_date = Time.now.strftime('%y%m%d').to_s
 
     chosen.each do |t|
       t_filed = t.sub("tk_", file_date + '-')
