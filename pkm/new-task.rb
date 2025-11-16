@@ -1,7 +1,5 @@
 #!/usr/bin/env ruby
 
-require 'highline'
-require 'date'
 require "fzf"
 
 class TaskCreator
@@ -10,8 +8,8 @@ class TaskCreator
   end
 
   def get_task_str
-    cli = HighLine.new
-    task_str = cli.ask "task: "
+    print "task: "
+    gets.chomp
   end
 
   def create_task_file task_name:, file_content:
@@ -37,7 +35,7 @@ class TaskCreator
     end
 
     if start_date && start_date < 101
-      start_date = (Date.today + start_date).strftime('%y%m%d')
+      start_date = (Time.now + start_date * 24 * 60 * 60).strftime('%y%m%d')
     end
 
     due_match = task_str.match(/d \d{6}/) || task_str.match(/d \d{1,2}/)
@@ -53,7 +51,7 @@ class TaskCreator
     end
 
     if due_date && due_date < 101
-      due_date = (Date.today + due_date).strftime('%y%m%d')
+      due_date = (Time.now + due_date * 24 * 60 * 60).strftime('%y%m%d')
     end
 
     task_name = task_str.sub(start_match.to_s, '').sub(due_match.to_s, '').strip
@@ -77,7 +75,7 @@ class TaskCreator
     end
 
     # Add started_date with today's date in %y%m%d format
-    file_lines.insert(2, "- started_date: #{Date.today.strftime('%y%m%d')}\n")
+    file_lines.insert(2, "- started_date: #{Time.now.strftime('%y%m%d')}\n")
 
     if task_meta[:projects].any?
       file_lines.insert(3, "- project: #{task_meta[:projects].join(', ')}\n")
