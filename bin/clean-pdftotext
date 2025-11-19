@@ -1,0 +1,36 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
+"""
+Script Requirements:
+- As a user, I want to read a text file provided as a command-line argument.
+- As a user, I want to completely remove any lines that contain only numeric digits (ignoring whitespace).
+- As a user, I want to strip the Form Feed control character (^L) from any line where it appears.
+- As a user, I want the cleaned text to be printed to standard output or saved to a file if redirected.
+"""
+
+import argparse
+import sys
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("file_path", type=str)
+    args = parser.parse_args()
+
+    try:
+        with open(args.file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                clean_line = line.replace('\f', '')
+
+                if clean_line.strip().isdigit():
+                    continue
+
+                sys.stdout.write(clean_line)
+    except FileNotFoundError:
+        sys.stderr.write(f"Error: File '{args.file_path}' not found.\n")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
