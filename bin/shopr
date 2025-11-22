@@ -12,7 +12,7 @@ Script Requirements:
 - As a user, I want to select an item name from the `fzf` list.
 - As a user, I want the script to open the URL of the selected item.
 - As a user, I want the open command to be `termux-open "URL"` if running in Termux (detected via TERMUX_APP_PID env var).
-- As a user, I want the open command to be `open -a Firefox "URL"` if running on macOS (darwin).
+- As a user, I want the open command to be `open -a Google Chrome "URL"` if running on macOS (darwin).
 - As a user, I want the script to report errors to stderr if the YAML file is missing, `fzf` is not found, or the open command fails.
 - As a user, I want the script to exit gracefully if I cancel the `fzf` selection.
 """
@@ -77,7 +77,7 @@ def main():
     if os.environ.get("TERMUX_APP_PID"):
         command_args = ["termux-open", selected_url]
     elif sys.platform == "darwin":
-        command_args = ["open", "-a", "Firefox", selected_url]
+        command_args = ["open", "-a", "Google Chrome", selected_url]
     else:
         print(f"Error: Unsupported platform '{sys.platform}'. No open command configured.", file=sys.stderr)
         sys.exit(1)
