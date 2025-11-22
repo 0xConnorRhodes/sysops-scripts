@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+
+nix-collect-garbage -d
+
+if [ "$(uname)" = "Darwin" ]; then
+    brew cleanup --prune=all -s
+fi
