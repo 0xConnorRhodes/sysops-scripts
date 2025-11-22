@@ -3,5 +3,9 @@
 nix-collect-garbage -d
 
 if [ "$(uname)" = "Darwin" ]; then
-    brew cleanup --prune=all -s
+  brew cleanup --prune=all -s
+
+  if ! osascript -e 'tell app "Finder" to empty' 2>/dev/null; then
+    echo "no items in trash"
+  fi
 fi
