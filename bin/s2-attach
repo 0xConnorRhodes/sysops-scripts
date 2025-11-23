@@ -7,6 +7,7 @@
 """
 Script Requirements:
 - As a user, I want to set a source folder (default: ~/Desktop) at the top of the script.
+- As a user, I want the script to check ~/Downloads as a fallback when no files are found in ~/Desktop.
 - As a user, I want to list files in the source folder, ignoring directories and hidden files.
 - As a user, I want the file to be selected automatically if only one file exists when the script starts.
 - As a user, I want to select a file using fzf if multiple files exist.
@@ -156,7 +157,15 @@ def main():
 
     if not files:
         print(f"No files found in {src_dir}.")
-        return
+        # Fallback to Downloads folder
+        downloads_dir = Path.home() / "Downloads"
+        print(f"Checking fallback directory: {downloads_dir}")
+        files = get_files_in_dir(downloads_dir)
+        if files:
+            src_dir = downloads_dir
+        else:
+            print(f"No files found in {downloads_dir} either.")
+            return
 
     if len(files) == 1:
         print("Only one file found, processing automatically.")
