@@ -22,8 +22,15 @@ convert_file() {
     filename_without_ext="${filename%.*}"
     extension="${filename##*.}"
 
-    # Create output path with same extension as input
-    output_file="${output_dir}/${filename_without_ext}.${extension}"
+    # Convert .mov files to .mkv, keep other extensions as-is
+    if [ "$extension" = "mov" ]; then
+        output_extension="mkv"
+    else
+        output_extension="$extension"
+    fi
+
+    # Create output path
+    output_file="${output_dir}/${filename_without_ext}.${output_extension}"
 
     # Determine audio codec settings
     if [ "$reencode_opus" = "true" ]; then
@@ -84,7 +91,15 @@ if [ $# -eq 1 ]; then
     filename=$(basename "$input_file")
     filename_without_ext="${filename%.*}"
     extension="${filename##*.}"
-    output_file="${filename_without_ext}.${extension}"
+
+    # Convert .mov files to .mkv, keep other extensions as-is
+    if [ "$extension" = "mov" ]; then
+        output_extension="mkv"
+    else
+        output_extension="$extension"
+    fi
+
+    output_file="${filename_without_ext}.${output_extension}"
 
     if [[ "$(uname)" == "Darwin" ]]; then
         caffeinate -d &
@@ -122,7 +137,7 @@ if [ $# -eq 0 ]; then
     echo "Scanning current directory for video files..."
 
     # Find .mp4 and .mkv files in current directory only (not subdirectories)
-    files=(*.mp4 *.mkv)
+    files=(*.mp4 *.mkv *.mov)
 
     # Filter out patterns that don't match actual files
     video_files=()
