@@ -27,6 +27,7 @@ clone_repo 'git@github.com:0xConnorRhodes/audio-dispatch.git' "$code_dir/audio-d
 clone_repo 'git@github.com:0xConnorRhodes/clip-dispatch.git' "$code_dir/clip-dispatch"
 clone_repo 'git@github.com:0xConnorRhodes/prompter.git' "$code_dir/prompter"
 clone_repo 'git@github.com:0xConnorRhodes/food-log.git' "$code_dir/food-log"
+clone_repo 'git@github.com:0xConnorRhodes/serial-comms.git' "$code_dir/food-log"
 
 # nvim
 clone_repo 'git@github.com:0xConnorRhodes/nvim-config.git' "$HOME/.config/nvim"
