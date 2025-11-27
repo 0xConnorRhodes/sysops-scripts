@@ -13,6 +13,13 @@ Script Requirements:
 - As a user, if a matching file in '~/code/notes/df' has no H1 header, I want a warning printed to stderr, and the script should continue.
 - As a user, I want to see print output for files that were processed, showing both newly created hardlinks and files that were already linked.
 - As a user, I want warnings and errors printed to stderr.
+- As a user, if any of the hardlinked files have been removed from '~/code/notes', I want the corresponding file in '~/.local/notes/housenotes/' to be deleted.
+
+PLACE
+
+- just added hardlink cleanup.
+- try running the update-zk script to delete the letter to tate, then verify that this script prunes it
+- then add calling this script into the update-zk script
 """
 
 import sys
@@ -37,6 +44,45 @@ def get_h1_filename(content: str) -> str | None:
 
     header_text = match.group(1).strip()
     return header_text.lower().replace(" ", "-") + ".md"
+
+def cleanup_orphaned_hardlinks():
+    """
+    Remove hardlinks in the target directory whose source files no longer exist.
+    """
+    if not TARGET_DIR.exists():
+        return
+
+    for target_file in TARGET_DIR.iterdir():
+        if not target_file.is_file():
+            continue
+
+        try:
+            # Check if the file is a hardlink by seeing if it has multiple links
+            stat_info = target_file.stat()
+            if stat_info.st_nlink <= 1:
+                continue
+
+            # For hardlinks, we need to check if the source still exists in SOURCE_DIR
+            # We'll do this by checking if any file in SOURCE_DIR has the same inode
+            source_exists = False
+            target_inode = stat_info.st_ino
+
+            for source_file in SOURCE_DIR.rglob("*.md"):
+                try:
+                    if source_file.stat().st_ino == target_inode:
+                        source_exists = True
+                        break
+                except (OSError, IOError):
+                    # Source file might be inaccessible, continue checking others
+                    continue
+
+            if not source_exists:
+                # No matching source file found, remove the orphaned hardlink
+                target_file.unlink()
+                print(f"Removed orphaned hardlink: {target_file}")
+
+        except (OSError, IOError) as e:
+            print(f"Error checking hardlink '{target_file}': {e}", file=sys.stderr)
 
 def process_file(source_file: Path):
     """
@@ -101,6 +147,9 @@ def main():
 
     # Ensure target directory exists
     TARGET_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Clean up orphaned hardlinks first
+    cleanup_orphaned_hardlinks()
 
     # Recursively find all .md files and process them
     for md_file in SOURCE_DIR.rglob("*.md"):
