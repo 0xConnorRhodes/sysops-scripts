@@ -1,17 +1,157 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to process a single media file by passing it as an argument.
+- As a user, I want a processed single file to be saved with a '-q' suffix (e.g., 'video.mp4' -> 'video-q.mp4').
+- As a user, I want to trigger a bulk-processing mode if I provide no arguments or use '.' as the argument.
+- As a user, I want the bulk mode to scan the current directory for supported file types.
+- As a user, I want to see how many files were found in bulk mode and be asked to confirm (y/n) before processing.
+- As a user, I want bulk-processed files to be saved in a 'reduced_vol/' subdirectory with their original filenames.
+- As a user, I want to configure the default volume level via a variable at the top of the script.
+- As a user, I want to configure the list of supported file extensions for bulk mode via a variable.
+- As a user, I want to override the default volume level at runtime using a '--vol' flag.
+- As a user, I want to see the ffmpeg command being executed for each file.
+"""
 
-INFILE="$1"
-DIR=$(dirname "$INFILE")
-BASENAME=$(basename "$INFILE")
-FILENAME="${BASENAME%.*}"
-EXTENSION="${BASENAME##*.}"
+import sys
+import subprocess
+import argparse
+from pathlib import Path
 
-if [ "$FILENAME" = "$BASENAME" ]; then
-    OUTFILE="${DIR}/${FILENAME}-q"
-else
-    OUTFILE="${DIR}/${FILENAME}-q.${EXTENSION}"
-fi
+# --- User Configuration ---
 
-echo "Processing: $INFILE -> $OUTFILE"
+# Default volume level. Can be a float (e.g., 0.5) or dB (e.g., -10dB).
+DEFAULT_VOLUME: str = "0.05"
 
-ffmpeg -i "$INFILE" -c:v copy -filter:a 'volume=0.04' "$OUTFILE"
+# File extensions to scan for in bulk mode.
+SUPPORTED_EXTENSIONS: list[str] = [".mp4", ".mp3", ".m4b", ".mkv"]
+
+# Subdirectory to store results in bulk mode.
+BULK_OUTPUT_DIR: str = "reduced_vol"
+
+# Suffix to add to filenames in single-file mode.
+SINGLE_FILE_SUFFIX: str = "-q"
+
+# --- End Configuration ---
+
+
+def process_file(infile: Path, outfile: Path, volume: str):
+    """
+    Runs the ffmpeg command on a single file.
+    """
+    command = [
+        "ffmpeg",
+        "-i", str(infile),
+        "-c:v", "copy",
+        "-filter:a", f"volume={volume}",
+        "-y",  # Overwrite output file without asking
+        str(outfile)
+    ]
+
+    print(f"--- Processing: {infile.name}")
+    print(f"Running: {' '.join(command)}")
+
+    try:
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        print(f"Successfully created: {outfile}")
+    except FileNotFoundError:
+        print(
+            "Error: 'ffmpeg' command not found. Please ensure ffmpeg is installed and in your system's PATH.",
+            file=sys.stderr
+        )
+        sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Error processing {infile.name}:", file=sys.stderr)
+        print(e.stderr, file=sys.stderr)
+    print("-" * 20)
+
+
+def run_single_file_mode(infile: Path, volume: str):
+    """
+    Handles logic for processing a single file.
+    """
+    if not infile.is_file():
+        print(f"Error: File not found: {infile}", file=sys.stderr)
+        sys.exit(1)
+
+    outfile = infile.with_name(
+        f"{infile.stem}{SINGLE_FILE_SUFFIX}{infile.suffix}"
+    )
+    process_file(infile, outfile, volume)
+
+
+def run_bulk_mode(scan_dir: Path, volume: str):
+    """
+    Handles logic for scanning and processing files in bulk.
+    """
+    print(f"Scanning '{scan_dir}' for {', '.join(SUPPORTED_EXTENSIONS)} files...")
+    files_to_process = []
+    for ext in SUPPORTED_EXTENSIONS:
+        files_to_process.extend(scan_dir.glob(f"*{ext}"))
+
+    if not files_to_process:
+        print("No matching files found.")
+        return
+
+    print(f"\nFound {len(files_to_process)} files:")
+    for f in files_to_process:
+        print(f"  - {f.name}")
+
+    try:
+        confirm = input("\nProcess all files? (y/n): ")
+    except KeyboardInterrupt:
+        print("\nOperation cancelled.")
+        sys.exit(0)
+
+    if confirm.lower() != 'y':
+        print("Operation cancelled.")
+        return
+
+    output_dir = scan_dir / BULK_OUTPUT_DIR
+    output_dir.mkdir(exist_ok=True)
+    print(f"\nStarting bulk processing. Output directory: {output_dir}")
+
+    for infile in files_to_process:
+        outfile = output_dir / infile.name
+        process_file(infile, outfile, volume)
+
+    print("Bulk processing complete.")
+
+
+def main():
+    """
+    Main script entry point.
+    """
+    parser = argparse.ArgumentParser(
+        description="Reduce audio volume in media files using ffmpeg."
+    )
+    parser.add_argument(
+        "infile",
+        nargs="?",
+        default=".",
+        help="Input file to process. If omitted or set to '.', "
+             "scans current directory for supported files (bulk mode)."
+    )
+    parser.add_argument(
+        "--vol",
+        default=DEFAULT_VOLUME,
+        help=f"Audio volume level (e.g., 0.5, -10dB). Default: {DEFAULT_VOLUME}"
+    )
+    args = parser.parse_args()
+
+    infile_arg = args.infile
+    volume = args.vol
+
+    if infile_arg != ".":
+        run_single_file_mode(Path(infile_arg), volume)
+    else:
+        run_bulk_mode(Path.cwd(), volume)
+
+
+if __name__ == "__main__":
+    main()
