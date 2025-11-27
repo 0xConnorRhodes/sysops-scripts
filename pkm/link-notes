@@ -7,6 +7,7 @@
 # ///
 """
 Script Requirements:
+- As a user, I want the script to check the current machine's hostname and only proceed if it matches a defined allowlist (e.g., 'mpro').
 - As a user, I want to read a YAML configuration file located at '$HOME/code/notes/linked-notes.yml'.
 - As a user, I want to define destination directories for specific configuration keys using a dictionary.
 - As a user, I want to read `linkedNotes` patterns to create hard links from Source -> Destination.
@@ -19,6 +20,7 @@ Script Requirements:
 import os
 import sys
 import yaml
+import socket
 from pathlib import Path
 
 # --- Configuration ---
@@ -27,12 +29,22 @@ HOME = Path.home()
 SOURCE_DIR = HOME / "code/notes"
 CONFIG_FILE = SOURCE_DIR / "linked-notes.yml"
 
+# Hostname Allowlist
+RUN_ON = ["mpro"]
+
 # User-editable dictionary mapping YAML keys to Destination Directories
 DEST_MAPPINGS = {
     "silverbullet": HOME / ".local/notes/silverbullet",
 }
 
 # ---------------------
+
+def check_hostname():
+    current_host = socket.gethostname()
+    if current_host not in RUN_ON:
+        print(f"Skipping: Current host '{current_host}' is not in the allowed list {RUN_ON}.")
+        sys.exit(0)
+    print(f"Host check passed: {current_host}")
 
 def load_config(path: Path) -> dict:
     if not path.exists():
@@ -43,16 +55,16 @@ def load_config(path: Path) -> dict:
         return yaml.safe_load(f) or {}
 
 def sync_links():
+    check_hostname()
+    
     print(f"Starting sync from {SOURCE_DIR}")
     config = load_config(CONFIG_FILE)
 
     for key, dest_str in DEST_MAPPINGS.items():
         dest_dir = Path(dest_str)
         
-        # Parse the section config
         section_data = config.get(key) or {}
         
-        # Handle cases where section might be empty or malformed
         if not isinstance(section_data, dict):
             print(f"Warning: Configuration for '{key}' is not a valid dictionary. Skipping.")
             continue
@@ -74,7 +86,6 @@ def sync_links():
             matched_files = list(SOURCE_DIR.glob(pattern))
             
             if not matched_files:
-                # Optional: Verbose logging could go here
                 continue
 
             for source_file in matched_files:
@@ -119,7 +130,6 @@ def sync_links():
                 continue
 
             # Rule 3: Check Exemptions
-            # We match the path relative to the destination directory against the exempt patterns
             rel_path = path.relative_to(dest_dir)
             is_exempt = False
             for exempt_pattern in exempt_patterns:
@@ -131,7 +141,6 @@ def sync_links():
                 print(f"Skipping exempt file: {path.name}")
                 continue
 
-            # If we reached here, the file is an unlinked .md file that is not exempt
             print(f"Removing unlisted file: {path}")
             path.unlink()
 
