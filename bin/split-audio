@@ -1,0 +1,128 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
+"""
+Script Requirements:
+- As a user, I want to accept either a single MP3 file or a directory ('.') as input.
+- As a user, I want to process all MP3 files in the directory if '.' is provided, sorted alphanumerically.
+- As a user, I want the output filename to be "clean": stripping existing numbers from the input filename so I don't get double numbering (e.g., 'Book 1 19.mp3').
+- As a user, I want a single continuous numbering sequence across all files.
+- As a user, I want to maintain the existing non-encoding split logic.
+"""
+
+import argparse
+import subprocess
+import sys
+import math
+import re
+from pathlib import Path
+
+def get_duration(file_path):
+    """Retrieve the duration of the audio file in seconds using ffprobe."""
+    cmd = [
+        "ffprobe",
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        str(file_path)
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        return 0.0
+
+def clean_stem(stem):
+    """
+    Removes trailing numbers and separators from a filename stem.
+    Example: "filename 2" -> "filename"
+    Example: "input-01" -> "input"
+    """
+    # Regex explains: match whitespace/dash/underscore followed by digits at the end of string
+    cleaned = re.sub(r'[\s\-_]+\d+$', '', stem)
+    return cleaned if cleaned else "output"
+
+def split_file(input_path, output_dir, base_name, start_number):
+    """Splits a single file and returns the number of segments created."""
+    duration = get_duration(input_path)
+    if duration == 0:
+        print(f"Warning: Could not determine duration for {input_path.name}, skipping.", file=sys.stderr)
+        return 0
+
+    # Calculate expected segments (1 hour = 3600 seconds)
+    segment_count = math.ceil(duration / 3600)
+    
+    # Define output pattern using the provided common base_name
+    output_pattern = output_dir / f"{base_name} %d{input_path.suffix}"
+
+    cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel", "error",
+        "-i", str(input_path),
+        "-f", "segment",
+        "-segment_time", "3600",
+        "-c", "copy",
+        "-reset_timestamps", "1",
+        "-segment_start_number", str(start_number),
+        str(output_pattern)
+    ]
+
+    print(f"Processing '{input_path.name}' -> '{base_name} {start_number}{input_path.suffix}'...")
+    subprocess.run(cmd, check=True)
+    
+    return segment_count
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input", help="Path to input mp3 file or '.' for current directory")
+    args = parser.parse_args()
+
+    input_arg = args.input
+    output_dir = Path("output")
+    output_dir.mkdir(exist_ok=True)
+    
+    files_to_process = []
+
+    # Determine input mode
+    if input_arg == ".":
+        files_to_process = sorted(Path(".").glob("*.mp3"))
+        if not files_to_process:
+            print("No .mp3 files found in current directory.", file=sys.stderr)
+            sys.exit(1)
+    else:
+        input_path = Path(input_arg).resolve()
+        if not input_path.exists():
+            print(f"Error: File '{input_path}' not found.", file=sys.stderr)
+            sys.exit(1)
+        files_to_process = [input_path]
+
+    # Check for ffprobe availability
+    try:
+        subprocess.run(["ffprobe", "-version"], capture_output=True, check=True)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        print("Error: 'ffprobe' is required but not found in PATH.", file=sys.stderr)
+        sys.exit(1)
+
+    # Determine the common base name from the *first* file in the sequence
+    # This prevents filenames changing mid-stream (e.g. from "Book 1..." to "Book 2...")
+    first_file_stem = files_to_process[0].stem
+    common_base_name = clean_stem(first_file_stem)
+    print(f"Output Base Name detected: '{common_base_name}'")
+
+    global_counter = 1
+
+    for file_path in files_to_process:
+        try:
+            # We pass the same common_base_name to every file call
+            segments_created = split_file(file_path, output_dir, common_base_name, global_counter)
+            global_counter += segments_created
+        except subprocess.CalledProcessError as e:
+            print(f"Error processing {file_path.name}: {e}", file=sys.stderr)
+
+    print(f"\nDone. Output files located in '{output_dir}/'")
+
+if __name__ == "__main__":
+    main()
