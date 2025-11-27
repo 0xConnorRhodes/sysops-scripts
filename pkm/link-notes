@@ -2,158 +2,140 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
+#   "pyyaml",
 # ]
 # ///
 """
 Script Requirements:
-- As a user, I want to scan all .md files in '~/code/notes' and its subdirectories.
-- As a user, I want to find files that contain the exact string "#hh".
-- As a user, I want to create a hardlink for any matching file in '~/.local/notes/housenotes/'.
-- As a user, if a matching file is in '~/code/notes/df', I want the hardlink's name to be a lowercase, kebab-case version of its H1 header (e.g., 'my-header.md').
-- As a user, if a matching file in '~/code/notes/df' has no H1 header, I want a warning printed to stderr, and the script should continue.
-- As a user, I want to see print output for files that were processed, showing both newly created hardlinks and files that were already linked.
-- As a user, I want warnings and errors printed to stderr.
-- As a user, if any of the hardlinked files have been removed from '~/code/notes', I want the corresponding file in '~/.local/notes/housenotes/' to be deleted.
-
-PLACE
-
-- just added hardlink cleanup.
-- try running the update-zk script to delete the letter to tate, then verify that this script prunes it
-- then add calling this script into the update-zk script
+- As a user, I want to read a YAML configuration file located at '$HOME/code/notes/linked-notes.yml'.
+- As a user, I want to define destination directories for specific configuration keys using a dictionary.
+- As a user, I want to read `linkedNotes` patterns to create hard links from Source -> Destination.
+- As a user, I want to read `exemptFiles` patterns to prevent specific files in the Destination from being deleted.
+- As a user, I want to ensure that ONLY files with the `.md` extension are ever candidates for deletion in the Destination.
+- As a user, I want existing hard links to be preserved without error.
+- As a user, I want to ensure no files are ever deleted from the source directory.
 """
 
+import os
 import sys
-import re
+import yaml
 from pathlib import Path
 
 # --- Configuration ---
 
-SOURCE_DIR = Path.home() / "code" / "notes"
-DF_DIR = SOURCE_DIR / "df"
-TARGET_DIR = Path.home() / ".local" / "notes" / "housenotes"
-SEARCH_STRING = "#hh"
-H1_REGEX = re.compile(r"^\s*#\s+(.+)\s*$", re.MULTILINE)
+HOME = Path.home()
+SOURCE_DIR = HOME / "code/notes"
+CONFIG_FILE = SOURCE_DIR / "linked-notes.yml"
 
-# --- --- ---
+# User-editable dictionary mapping YAML keys to Destination Directories
+DEST_MAPPINGS = {
+    "silverbullet": HOME / ".local/notes/silverbullet",
+}
 
-def get_h1_filename(content: str) -> str | None:
-    """Finds the first H1 header and returns a slugified filename."""
-    match = H1_REGEX.search(content)
-    if not match:
-        return None
+# ---------------------
 
-    header_text = match.group(1).strip()
-    return header_text.lower().replace(" ", "-") + ".md"
+def load_config(path: Path) -> dict:
+    if not path.exists():
+        print(f"Error: Configuration file not found at {path}")
+        sys.exit(1)
+    
+    with open(path, 'r') as f:
+        return yaml.safe_load(f) or {}
 
-def cleanup_orphaned_hardlinks():
-    """
-    Remove hardlinks in the target directory whose source files no longer exist.
-    """
-    if not TARGET_DIR.exists():
-        return
+def sync_links():
+    print(f"Starting sync from {SOURCE_DIR}")
+    config = load_config(CONFIG_FILE)
 
-    for target_file in TARGET_DIR.iterdir():
-        if not target_file.is_file():
+    for key, dest_str in DEST_MAPPINGS.items():
+        dest_dir = Path(dest_str)
+        
+        # Parse the section config
+        section_data = config.get(key) or {}
+        
+        # Handle cases where section might be empty or malformed
+        if not isinstance(section_data, dict):
+            print(f"Warning: Configuration for '{key}' is not a valid dictionary. Skipping.")
             continue
 
-        try:
-            # Check if the file is a hardlink by seeing if it has multiple links
-            stat_info = target_file.stat()
-            if stat_info.st_nlink <= 1:
+        linked_patterns = section_data.get('linkedNotes') or []
+        exempt_patterns = section_data.get('exemptFiles') or []
+
+        print(f"--- Processing key: '{key}' ---")
+        print(f"Destination: {dest_dir}")
+
+        if not dest_dir.exists():
+            print(f"Creating directory: {dest_dir}")
+            dest_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Expand Globs and Create/Verify Hard Links
+        allowed_dest_files = set()
+
+        for pattern in linked_patterns:
+            matched_files = list(SOURCE_DIR.glob(pattern))
+            
+            if not matched_files:
+                # Optional: Verbose logging could go here
                 continue
 
-            # For hardlinks, we need to check if the source still exists in SOURCE_DIR
-            # We'll do this by checking if any file in SOURCE_DIR has the same inode
-            source_exists = False
-            target_inode = stat_info.st_ino
-
-            for source_file in SOURCE_DIR.rglob("*.md"):
-                try:
-                    if source_file.stat().st_ino == target_inode:
-                        source_exists = True
-                        break
-                except (OSError, IOError):
-                    # Source file might be inaccessible, continue checking others
+            for source_file in matched_files:
+                if not source_file.is_file():
                     continue
 
-            if not source_exists:
-                # No matching source file found, remove the orphaned hardlink
-                target_file.unlink()
-                print(f"Removed orphaned hardlink: {target_file}")
+                rel_path = source_file.relative_to(SOURCE_DIR)
+                dest_file = dest_dir / rel_path
+                
+                allowed_dest_files.add(dest_file)
 
-        except (OSError, IOError) as e:
-            print(f"Error checking hardlink '{target_file}': {e}", file=sys.stderr)
+                if not dest_file.parent.exists():
+                    dest_file.parent.mkdir(parents=True, exist_ok=True)
 
-def process_file(source_file: Path):
-    """
-    Checks a file for the search string and creates a hardlink
-    if found, applying special 'df' folder naming rules.
-    """
-    try:
-        content = source_file.read_text(encoding="utf-8")
+                if dest_file.exists():
+                    if dest_file.stat().st_ino == source_file.stat().st_ino:
+                        pass 
+                    else:
+                        print(f"Relinking (target differed): {rel_path}")
+                        dest_file.unlink()
+                        os.link(source_file, dest_file)
+                else:
+                    print(f"Linking: {rel_path}")
+                    os.link(source_file, dest_file)
 
-        if SEARCH_STRING not in content:
-            return
+        # 2. Cleanup Dangling Files in Destination
+        if dest_dir == SOURCE_DIR:
+            print("Error: Destination cannot be Source. Skipping cleanup.")
+            continue
 
-        target_file_name = ""
+        print("Checking for files to cleanup...")
+        for path in dest_dir.rglob('*'):
+            if not path.is_file():
+                continue
 
-        # Check for special 'df' directory case
-        if source_file.parent == DF_DIR:
-            target_file_name = get_h1_filename(content)
-            if not target_file_name:
-                # Warn and skip this file, but continue script
-                print(
-                    f"Warning: File '{source_file}' contains '{SEARCH_STRING}' "
-                    "but has no H1 header. Skipping.",
-                    file=sys.stderr
-                )
-                return
-        else:
-            # Standard case: use the original filename
-            target_file_name = source_file.name
+            # Rule 1: Only prune markdown files
+            if path.suffix != '.md':
+                continue
 
-        target_path = TARGET_DIR / target_file_name
+            # Rule 2: Keep files we just verified/linked
+            if path in allowed_dest_files:
+                continue
 
-        # Handle existing files to be idempotent
-        if target_path.exists():
-            if target_path.samefile(source_file):
-                print(f"Already linked: {source_file} -> {target_path}")
-                return # Already linked correctly, silent success
-            else:
-                # Name collision with a *different* file
-                print(
-                    f"Error: Target '{target_path}' already exists but points "
-                    f"to a different file. Cannot link '{source_file}'.",
-                    file=sys.stderr
-                )
-                return
+            # Rule 3: Check Exemptions
+            # We match the path relative to the destination directory against the exempt patterns
+            rel_path = path.relative_to(dest_dir)
+            is_exempt = False
+            for exempt_pattern in exempt_patterns:
+                if rel_path.match(exempt_pattern):
+                    is_exempt = True
+                    break
+            
+            if is_exempt:
+                print(f"Skipping exempt file: {path.name}")
+                continue
 
-        # Create the hardlink
-        target_path.hardlink_to(source_file)
-        print(f"Created hardlink: {source_file} -> {target_path}")
+            # If we reached here, the file is an unlinked .md file that is not exempt
+            print(f"Removing unlisted file: {path}")
+            path.unlink()
 
-    except (IOError, OSError, UnicodeDecodeError) as e:
-        print(f"Error processing file '{source_file}': {e}", file=sys.stderr)
-    except Exception as e:
-        print(
-            f"An unexpected error occurred with file '{source_file}': {e}",
-            file=sys.stderr
-        )
-
-def main():
-    if not SOURCE_DIR.is_dir():
-        print(f"Error: Source directory not found: {SOURCE_DIR}", file=sys.stderr)
-        sys.exit(1)
-
-    # Ensure target directory exists
-    TARGET_DIR.mkdir(parents=True, exist_ok=True)
-
-    # Clean up orphaned hardlinks first
-    cleanup_orphaned_hardlinks()
-
-    # Recursively find all .md files and process them
-    for md_file in SOURCE_DIR.rglob("*.md"):
-        process_file(md_file)
+    print("--- Sync Complete ---")
 
 if __name__ == "__main__":
-    main()
+    sync_links()
