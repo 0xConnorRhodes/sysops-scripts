@@ -31,6 +31,7 @@ def run_additional_scripts():
         "process-draft-tags",
         "update-new-note-titles",
         "process-evergreen-drafts",
+        "link-notes",
     ]
 
     script_dir = Path.home() / "code" / "scripts" / "pkm"
