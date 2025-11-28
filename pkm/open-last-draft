@@ -12,6 +12,7 @@ Script Requirements:
 - As a user, I want the script to run silently on success, but report errors to stderr if no files are found or the command fails.
 """
 
+import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -19,7 +20,10 @@ from pathlib import Path
 
 def main():
     home = Path.home()
-    code_executable = home / ".nix-profile/bin/code"
+    if platform.system() == "Darwin":
+        code_executable = Path("/opt/homebrew/bin/code")
+    else:
+        code_executable = home / ".nix-profile/bin/code"
     notes_dir = home / "code/notes/df"
 
     if not notes_dir.exists():

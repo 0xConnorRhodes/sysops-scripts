@@ -1,3 +1,17 @@
-#!/bin/zsh
+#!/usr/bin/env python3
 
-$HOME/.nix-profile/bin/code $HOME/code/notes/walk.md
+import platform
+from pathlib import Path
+import subprocess
+import os
+
+home = Path.home()
+
+if platform.system() == "Darwin":
+    code_executable = Path("/opt/homebrew/bin/code")
+else:
+    code_executable = home / ".nix-profile/bin/code"
+
+# Open the walk note
+walk_note_path = home / "code/notes/walk.md"
+subprocess.run([str(code_executable), str(walk_note_path)])

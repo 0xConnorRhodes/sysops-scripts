@@ -14,6 +14,7 @@ Script Requirements:
 """
 
 import subprocess
+import platform
 from pathlib import Path
 
 
@@ -25,7 +26,7 @@ def find_latest_weekly_note(notes_dir: Path) -> Path | None:
             continue
 
         date_str = f.stem[5:]  # Get part after "week_"
-        
+
         # Ensure it's a 6-digit numeric string
         if len(date_str) == 6:
             try:
@@ -44,7 +45,12 @@ def find_latest_weekly_note(notes_dir: Path) -> Path | None:
 
 def main():
     home = Path.home()
-    code_executable = home / ".nix-profile/bin/code"
+
+    if platform.system() == "Darwin":
+        code_executable = Path("/opt/homebrew/bin/code")
+    else:
+        code_executable = home / ".nix-profile/bin/code"
+
     notes_dir = home / "code/notes"
 
     latest_note_file = find_latest_weekly_note(notes_dir)

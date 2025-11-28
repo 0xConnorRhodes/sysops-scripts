@@ -15,7 +15,9 @@ Script Requirements:
 import subprocess
 import sys
 import os.path
+import platform
 from datetime import date
+from pathlib import Path
 
 
 def main():
@@ -26,19 +28,23 @@ def main():
         today = date.today()
         date_str = today.strftime("%y%m%d")
 
-        command_path_raw = "~/.nix-profile/bin/code"
-        command_path = os.path.expanduser(command_path_raw)
+        home = Path.home()
+
+        if platform.system() == "Darwin":
+            code_executable = Path("/opt/homebrew/bin/code")
+        else:
+            code_executable = home / ".nix-profile/bin/code"
 
         file_path_raw = f"~/code/notes/s/cal_budget-{date_str}.md"
         file_path_expanded = os.path.expanduser(file_path_raw)
 
-        command = [command_path, file_path_expanded]
+        command = [str(code_executable), file_path_expanded]
 
         subprocess.run(command, check=True, capture_output=True, text=True)
 
     except FileNotFoundError:
         print(
-            f"Error: The command '{command_path}' (from '{command_path_raw}') was not found.",
+            f"Error: The command '{code_executable}' was not found.",
             file=sys.stderr
         )
         sys.exit(1)
