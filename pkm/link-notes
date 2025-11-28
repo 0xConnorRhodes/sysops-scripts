@@ -10,10 +10,10 @@ Script Requirements:
 - As a user, I want the script to check the current machine's hostname and only proceed if it matches a defined allowlist (e.g., 'mpro').
 - As a user, I want to read a YAML configuration file located at '$HOME/code/notes/linked-notes.yml'.
 - As a user, I want to define destination directories for specific configuration keys using a dictionary.
-- As a user, I want to read `linkedNotes` patterns to create hard links from Source -> Destination.
+- As a user, I want to read `linkedNotes` patterns to sync files by comparing modification times.
+- As a user, I want files to be synchronized so that the newer version overwrites the older one in both directories.
 - As a user, I want to read `exemptFiles` patterns to prevent specific files in the Destination from being deleted.
 - As a user, I want to ensure that ONLY files with the `.md` extension are ever candidates for deletion in the Destination.
-- As a user, I want existing hard links to be preserved without error.
 - As a user, I want to ensure no files are ever deleted from the source directory.
 """
 
@@ -21,6 +21,7 @@ import os
 import sys
 import yaml
 import socket
+import shutil
 from pathlib import Path
 
 # --- Configuration ---
@@ -50,21 +51,21 @@ def load_config(path: Path) -> dict:
     if not path.exists():
         print(f"Error: Configuration file not found at {path}")
         sys.exit(1)
-    
+
     with open(path, 'r') as f:
         return yaml.safe_load(f) or {}
 
 def sync_links():
     check_hostname()
-    
+
     print(f"Starting sync from {SOURCE_DIR}")
     config = load_config(CONFIG_FILE)
 
     for key, dest_str in DEST_MAPPINGS.items():
         dest_dir = Path(dest_str)
-        
+
         section_data = config.get(key) or {}
-        
+
         if not isinstance(section_data, dict):
             print(f"Warning: Configuration for '{key}' is not a valid dictionary. Skipping.")
             continue
@@ -79,12 +80,12 @@ def sync_links():
             print(f"Creating directory: {dest_dir}")
             dest_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Expand Globs and Create/Verify Hard Links
+        # 1. Expand Globs and Sync Files Based on Modification Time
         allowed_dest_files = set()
 
         for pattern in linked_patterns:
             matched_files = list(SOURCE_DIR.glob(pattern))
-            
+
             if not matched_files:
                 continue
 
@@ -94,22 +95,26 @@ def sync_links():
 
                 rel_path = source_file.relative_to(SOURCE_DIR)
                 dest_file = dest_dir / rel_path
-                
+
                 allowed_dest_files.add(dest_file)
 
                 if not dest_file.parent.exists():
                     dest_file.parent.mkdir(parents=True, exist_ok=True)
 
                 if dest_file.exists():
-                    if dest_file.stat().st_ino == source_file.stat().st_ino:
-                        pass 
-                    else:
-                        print(f"Relinking (target differed): {rel_path}")
-                        dest_file.unlink()
-                        os.link(source_file, dest_file)
+                    source_mtime = source_file.stat().st_mtime
+                    dest_mtime = dest_file.stat().st_mtime
+
+                    if source_mtime > dest_mtime:
+                        print(f"Updating destination (source is newer): {rel_path}")
+                        shutil.copy2(source_file, dest_file)
+                    elif dest_mtime > source_mtime:
+                        print(f"Updating source (destination is newer): {rel_path}")
+                        shutil.copy2(dest_file, source_file)
+                    # If times are equal, no action needed
                 else:
-                    print(f"Linking: {rel_path}")
-                    os.link(source_file, dest_file)
+                    print(f"Copying to destination: {rel_path}")
+                    shutil.copy2(source_file, dest_file)
 
         # 2. Cleanup Dangling Files in Destination
         if dest_dir == SOURCE_DIR:
@@ -136,7 +141,7 @@ def sync_links():
                 if rel_path.match(exempt_pattern):
                     is_exempt = True
                     break
-            
+
             if is_exempt:
                 print(f"Skipping exempt file: {path.name}")
                 continue
