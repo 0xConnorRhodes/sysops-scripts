@@ -36,6 +36,7 @@ RUN_ON = ["mpro"]
 # User-editable dictionary mapping YAML keys to Destination Directories
 DEST_MAPPINGS = {
     "silverbullet": HOME / ".local/notes/silverbullet",
+    "myflatnotes": HOME / ".local/notes/myflatnotes",
 }
 
 # ---------------------
