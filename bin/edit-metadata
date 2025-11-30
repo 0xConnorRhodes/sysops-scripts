@@ -1,0 +1,151 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
+"""
+Script Requirements:
+- As a user, I want to provide an audio file path as a CLI argument.
+- As a user, I want to open a Neovim buffer pre-populated with existing metadata.
+- As a user, I want the script to auto-detect 'cover.jpg' or 'cover.png' and apply it.
+- As a user, I want the script to overwrite the existing file with new metadata.
+- As a user, I want the script to create an empty '.changed' file in the directory ONLY if metadata was actually modified.
+"""
+
+import sys
+import os
+import subprocess
+import tempfile
+import re
+from pathlib import Path
+from typing import Dict, Optional
+
+# --- Configuration & Constants ---
+
+EDITOR = "nvim"
+
+METADATA_MAP = {
+    "Track Name": "©nam",
+    "Artist": "©ART",
+    "Album": "©alb",
+}
+
+ATOM_TO_READABLE = {v: k for k, v in METADATA_MAP.items()}
+
+# --- Protocol / Base Logic ---
+
+def get_artwork_path(audio_file_path: Path) -> Optional[Path]:
+    parent_dir = audio_file_path.parent
+    for ext in ['.jpg', '.png']:
+        cover = parent_dir / f"cover{ext}"
+        if cover.exists():
+            return cover
+    return None
+
+def parse_buffer(content: str) -> Dict[str, str]:
+    data = {}
+    for line in content.splitlines():
+        if ": " in line:
+            key, val = line.split(": ", 1)
+            data[key.strip()] = val.strip()
+    return data
+
+def edit_in_neovim(initial_data: Dict[str, str]) -> Dict[str, str]:
+    with tempfile.NamedTemporaryFile(mode='w+', suffix=".tmp", delete=False) as tf:
+        for key in METADATA_MAP.keys():
+            val = initial_data.get(key, "")
+            tf.write(f"{key}: {val}\n")
+        temp_path = tf.name
+
+    try:
+        subprocess.call([EDITOR, temp_path])
+        with open(temp_path, 'r') as tf:
+            content = tf.read()
+    finally:
+        os.remove(temp_path)
+
+    return parse_buffer(content)
+
+# --- Format Specific Handlers ---
+
+class M4AHandler:
+    @staticmethod
+    def read(path: Path) -> Dict[str, str]:
+        cmd = ["AtomicParsley", str(path), "-t"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        data = {}
+        pattern = re.compile(r'Atom "(?P<atom>[^"]+)" contains: (?P<val>.*)')
+        
+        for line in result.stdout.splitlines():
+            match = pattern.search(line)
+            if match:
+                atom = match.group("atom")
+                val = match.group("val")
+                if atom in ATOM_TO_READABLE:
+                    data[ATOM_TO_READABLE[atom]] = val
+        return data
+
+    @staticmethod
+    def write(path: Path, metadata: Dict[str, str]):
+        cmd = ["AtomicParsley", str(path), "--overWrite"]
+        
+        if "Track Name" in metadata:
+            cmd.extend(["--title", metadata["Track Name"]])
+        if "Artist" in metadata:
+            cmd.extend(["--artist", metadata["Artist"]])
+        if "Album" in metadata:
+            cmd.extend(["--album", metadata["Album"]])
+            
+        artwork = get_artwork_path(path)
+        if artwork:
+            cmd.extend(["--artwork", str(artwork)])
+            
+        subprocess.run(cmd, check=True)
+
+# --- Main Dispatcher ---
+
+HANDLERS = {
+    ".m4a": M4AHandler
+}
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: edit-metadata <path_to_audio_file>")
+        sys.exit(1)
+
+    file_path = Path(sys.argv[1]).resolve()
+    
+    if not file_path.exists():
+        print(f"Error: File '{file_path}' not found.")
+        sys.exit(1)
+
+    handler = HANDLERS.get(file_path.suffix.lower())
+    
+    if not handler:
+        print(f"Error: Unsupported file format '{file_path.suffix}'. Only .m4a is currently supported.")
+        sys.exit(1)
+
+    # 1. Read existing metadata
+    current_data = handler.read(file_path)
+
+    # 2. Edit in Neovim
+    new_data = edit_in_neovim(current_data)
+
+    # 3. Check for changes before writing
+    # We compare dictionary content to ensure we only touch .changed if actual edits happened
+    if new_data == current_data:
+        print("No changes detected in metadata. Exiting.")
+        return
+
+    # 4. Write updates
+    print(f"Updating {file_path.name}...")
+    handler.write(file_path, new_data)
+    
+    # 5. Create .changed indicator
+    changed_marker = file_path.parent / ".changed"
+    changed_marker.touch()
+    print(f"Success. Created marker: {changed_marker}")
+
+if __name__ == "__main__":
+    main()

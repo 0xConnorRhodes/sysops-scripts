@@ -12,6 +12,7 @@ Script Requirements:
 - As a user, I want to compare source 'meta.yml' files against the cached versions to detect changes.
 - As a user, I want to identify "dirty scopes": directories where the 'meta.yml' has changed, necessitating a re-transcode of all files in that directory and its subdirectories.
 - As a user, I want to transcode audio files if they are missing from the destination OR if they reside within a "dirty scope".
+- As a user, I want to re-transcode all files in a directory (and subdirectories) if a '.changed' file exists in that directory, and then remove the '.changed' file after processing.
 - As a user, I want to update the cache with the new 'meta.yml' files after processing is complete.
 - As a user, I want to continue using 'ffmpeg' and 'mediainfo' for audio processing as previously defined.
 """
@@ -132,33 +133,42 @@ def transcode_file(source: Path, dest: Path, volume: float):
 def identify_dirty_scopes() -> Set[Path]:
     """
     Compares Source meta.yml files with Cached meta.yml files.
+    Also checks for .changed files which mark directories as needing re-transcode.
     Returns a set of Paths (directories) where the configuration has changed.
     """
     dirty_scopes = set()
 
     for root, _, files in os.walk(SOURCE_ROOT):
+        root_path = Path(root)
+
+        # Check for .changed files - these always make the directory dirty
+        if ".changed" in files:
+            dirty_scopes.add(root_path)
+            print(f".changed file detected in: {root_path}")
+
+        # Check for meta.yml changes
         if "meta.yml" in files:
-            source_meta = Path(root) / "meta.yml"
-            rel_path = Path(root).relative_to(SOURCE_ROOT)
+            source_meta = root_path / "meta.yml"
+            rel_path = root_path.relative_to(SOURCE_ROOT)
             cache_meta = CACHE_ROOT / rel_path / "meta.yml"
 
             # If cache doesn't exist, or content differs
             if not cache_meta.exists():
-                dirty_scopes.add(Path(root))
+                dirty_scopes.add(root_path)
             else:
                 if not filecmp.cmp(source_meta, cache_meta, shallow=False):
-                    dirty_scopes.add(Path(root))
-    
+                    dirty_scopes.add(root_path)
+
     if dirty_scopes:
         print(f"Configuration changes detected in {len(dirty_scopes)} directories.")
     else:
         print("No configuration changes detected.")
-        
+
     return dirty_scopes
 
 def is_file_in_dirty_scope(file_path: Path, dirty_scopes: Set[Path]) -> bool:
     """
-    Checks if a file resides in a directory (or subdirectory) of a changed meta.yml.
+    Checks if a file resides in a directory (or subdirectory) of a changed meta.yml or .changed file.
     Because configuration cascades, a change in /Music affects /Music/Artist/Album.
     """
     current_check = file_path.parent
@@ -179,12 +189,26 @@ def update_cache(dirty_scopes: Set[Path]):
         rel_path = scope.relative_to(SOURCE_ROOT)
         dest_dir = CACHE_ROOT / rel_path
         dest_dir.mkdir(parents=True, exist_ok=True)
-        
+
         source_meta = scope / "meta.yml"
         dest_meta = dest_dir / "meta.yml"
-        
+
         if source_meta.exists():
             shutil.copy2(source_meta, dest_meta)
+
+def cleanup_changed_files(dirty_scopes: Set[Path]):
+    """
+    Removes .changed files from directories that have been processed.
+    """
+    print("Cleaning up .changed files...")
+    for scope in dirty_scopes:
+        changed_file = scope / ".changed"
+        if changed_file.exists():
+            try:
+                changed_file.unlink()
+                print(f"Removed .changed file from: {scope}")
+            except OSError as e:
+                print(f"Warning: Could not remove .changed file from {scope}: {e}", file=sys.stderr)
 
 def process_library():
     if not SOURCE_ROOT.exists():
@@ -239,6 +263,7 @@ def process_library():
     # 3. Update Cache (Only after processing is done)
     if dirty_scopes:
         update_cache(dirty_scopes)
+        cleanup_changed_files(dirty_scopes)
 
 if __name__ == "__main__":
     process_library()
