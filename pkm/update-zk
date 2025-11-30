@@ -28,7 +28,7 @@ def run_additional_scripts():
     # Define scripts to run as relative paths from this script's directory
     ADDITIONAL_SCRIPTS = [
         "build-fp-note",
-        "process-draft-tags",
+        "process-note-tags",
         "update-new-note-titles",
         "process-evergreen-drafts",
         "link-notes",

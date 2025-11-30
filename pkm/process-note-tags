@@ -9,9 +9,9 @@
 Script Requirements:
 - As a user, I want the script to read tag-to-command mappings from '~/code/notes/zk-tag-automation.yml'.
 - As a user, I want the script to iterate through each mapping defined in the YAML file.
-- As a user, I want the script to search for files containing a specific tag (e.g., '#a') within '~/code/notes/df' using 'rg'.
+- As a user, I want the script to search for files containing a specific tag (e.g., '#a') within both '~/code/notes' and '~/code/notes/df' non-recursively using 'rg'.
 - As a user, I want the search to match the exact tag (e.g., '#a') and not partial matches (e.g., '#abc').
-- As a user, I want the script to execute the associated command for each file found, replacing the placeholder 'FILE' with the file's absolute path.
+- As a user, I want the script to execute the associated command for each file found in both directories, replacing the placeholder 'FILE' with the file's absolute path.
 - As a user, I want to see a clean output format showing the tag being processed and the command prefix (first word of the command).
 - As a user, I want to see a bulleted list of successfully processed files by filename only.
 - As a user, I want to see error messages only when commands fail, not success messages for every file.
@@ -26,7 +26,10 @@ import yaml
 
 HOME = pathlib.Path.home()
 CONFIG_FILE = HOME / "code" / "notes" / "zk-tag-automation.yml"
-SEARCH_DIR = HOME / "code" / "notes" / "df"
+SEARCH_DIRS = [
+    HOME / "code" / "notes",  # non-recursive scan
+    HOME / "code" / "notes" / "df"  # non-recursive scan
+]
 
 def check_command_exists(command: str) -> bool:
     """Checks if a command exists on the system PATH."""
@@ -58,24 +61,34 @@ def load_config(config_path: pathlib.Path) -> list | None:
         print(f"Error reading config file: {e}", file=sys.stderr)
         return None
 
-def find_files_with_tag(tag: str, search_dir: pathlib.Path) -> tuple[list[str] | None, str | None]:
-    """Uses rg to find files with the given tag."""
+def find_files_with_tag(tag: str, search_dirs: list[pathlib.Path]) -> tuple[list[str] | None, str | None]:
+    """Uses rg to find files with the given tag in multiple directories (non-recursively)."""
     search_term = f"#{tag}"
-    command = ["rg", "--word-regexp", "--files-with-matches", search_term, str(search_dir)]
+    all_files = []
 
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', check=False)
+    for search_dir in search_dirs:
+        if not search_dir.is_dir():
+            continue
 
-        if result.returncode == 0:
-            files = result.stdout.strip().split('\n')
-            return [f for f in files if f], None
-        elif result.returncode == 1:
-            return [], None
-        else:
-            return None, f"rg error: {result.stderr.strip()}"
+        # All searches are non-recursive (max-depth 1)
+        command = ["rg", "--word-regexp", "--files-with-matches", "--max-depth", "1", search_term, str(search_dir)]
 
-    except Exception as e:
-        return None, f"An unexpected error occurred while running rg: {e}"
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', check=False)
+
+            if result.returncode == 0:
+                files = result.stdout.strip().split('\n')
+                all_files.extend([f for f in files if f])
+            elif result.returncode == 1:
+                # No matches found in this directory, continue
+                continue
+            else:
+                return None, f"rg error in {search_dir}: {result.stderr.strip()}"
+
+        except Exception as e:
+            return None, f"An unexpected error occurred while running rg in {search_dir}: {e}"
+
+    return all_files, None
 
 def run_command_on_file(command_template: str, file_path_str: str) -> tuple[bool, str]:
     """Runs the specified command, replacing 'FILE' with the file path."""
@@ -103,12 +116,14 @@ def main():
     if config is None:
         sys.exit(1)
 
-    if not SEARCH_DIR.is_dir():
-        print(f"Error: Search directory not found at {SEARCH_DIR}", file=sys.stderr)
+    # Check that at least one search directory exists
+    existing_dirs = [d for d in SEARCH_DIRS if d.is_dir()]
+    if not existing_dirs:
+        print(f"Error: None of the search directories exist: {', '.join(str(d) for d in SEARCH_DIRS)}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Loaded {len(config)} automation rules from {CONFIG_FILE}")
-    print(f"Searching in: {SEARCH_DIR}\n")
+    print(f"Searching in: {', '.join(str(d) for d in existing_dirs)}\n")
 
     total_actions = 0
     total_errors = 0
@@ -127,7 +142,7 @@ def main():
         command_prefix = " ".join(command_template.split()[0:2]) if command_template.split() else command_template
         print(f"command: {command_prefix}")
 
-        files, error = find_files_with_tag(tag, SEARCH_DIR)
+        files, error = find_files_with_tag(tag, existing_dirs)
 
         if error:
             print(f"  Error finding files: {error}", file=sys.stderr)
