@@ -1,0 +1,241 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#   "pyyaml",
+# ]
+# ///
+"""
+Script Requirements:
+- As a system, I want to mirror the directory structure of '/zstore/music_library/music_library' to '/scary/music_library'.
+- As a system, I want to maintain a configuration cache at '~/.local/share/music_library_transcode' that mirrors the source directory structure.
+- As a system, I want to compare source 'meta.yml' files against the cached versions to detect changes.
+- As a system, I want to identify "dirty scopes": directories where the 'meta.yml' has changed, necessitating a re-transcode of all files in that directory and its subdirectories.
+- As a system, I want to transcode audio files if they are missing from the destination OR if they reside within a "dirty scope".
+- As a system, I want to update the cache with the new 'meta.yml' files after processing is complete.
+- As a system, I want to continue using 'ffmpeg' and 'mediainfo' for audio processing as previously defined.
+"""
+
+import os
+import sys
+import shutil
+import subprocess
+import json
+import yaml
+import filecmp
+from pathlib import Path
+from typing import Optional, Dict, Any, Set
+
+# Configuration
+SOURCE_ROOT = Path("/zstore/music_library/music_library")
+DEST_ROOT = Path("/scary/music_library")
+CACHE_ROOT = Path("~/.local/share/music_library_transcode").expanduser()
+
+AUDIO_EXTENSIONS = {'.flac', '.m4a', '.aac', '.mp3', '.wav', '.ogg', '.alac'}
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp'}
+
+MAX_FILES_TO_PROCESS = 1
+
+def get_transcode_settings(file_path: Path, root_path: Path) -> float:
+    current_dir = file_path.parent
+    volume_reduce = 0.04  # Fallback safety
+    
+    search_path = current_dir
+    dirs_to_check = []
+    while search_path.is_relative_to(root_path):
+        dirs_to_check.append(search_path)
+        if search_path == root_path:
+            break
+        search_path = search_path.parent
+
+    # 1. Specific File Override
+    local_meta = current_dir / "meta.yml"
+    if local_meta.exists():
+        try:
+            with open(local_meta, 'r') as f:
+                data = yaml.safe_load(f) or {}
+                if file_path.name in data:
+                    if 'volume_reduce' in data[file_path.name]:
+                        return float(data[file_path.name]['volume_reduce'])
+        except Exception as e:
+            print(f"Error reading {local_meta}: {e}", file=sys.stderr)
+
+    # 2, 3, 4. Directory Defaults (Recursive)
+    for d in dirs_to_check:
+        meta_path = d / "meta.yml"
+        if meta_path.exists():
+            try:
+                with open(meta_path, 'r') as f:
+                    data = yaml.safe_load(f) or {}
+                    if 'default' in data and 'volume_reduce' in data['default']:
+                        return float(data['default']['volume_reduce'])
+            except Exception as e:
+                print(f"Error reading {meta_path}: {e}", file=sys.stderr)
+
+    return volume_reduce
+
+def get_file_metadata(file_path: Path) -> Dict[str, Any]:
+    cmd = [
+        "mediainfo",
+        "--Output=JSON",
+        str(file_path)
+    ]
+    # Suppress stderr to keep output clean
+    result = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
+    data = json.loads(result)
+    
+    media_track = next((t for t in data.get('media', {}).get('track', []) if t.get('@type') == 'Audio'), {})
+    general_track = next((t for t in data.get('media', {}).get('track', []) if t.get('@type') == 'General'), {})
+
+    bitrate = media_track.get('BitRate') or general_track.get('OverallBitRate') or "320000"
+    if isinstance(bitrate, str):
+        bitrate = ''.join(filter(str.isdigit, bitrate))
+
+    return {
+        "bitrate": int(bitrate),
+        "format": general_track.get('Format', '').lower(),
+        "audio_format": media_track.get('Format', '').lower()
+    }
+
+def transcode_file(source: Path, dest: Path, volume: float):
+    meta = get_file_metadata(source)
+    bitrate = meta['bitrate']
+    fmt = meta['format']
+    audio_fmt = meta['audio_format']
+
+    codec = "copy"
+    if "flac" in audio_fmt:
+        codec = "flac"
+    elif "aac" in audio_fmt or "mpeg-4" in fmt or "m4a" in source.suffix:
+        codec = "aac"
+    
+    cmd = [
+        "ffmpeg",
+        "-y", 
+        "-i", str(source),
+        "-c:v", "copy",
+        "-c:a", codec,
+        "-b:a", str(bitrate),
+        "-filter:a", f"volume={volume}",
+        str(dest)
+    ]
+
+    try:
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"[Encoded] {source.name} | Vol: {volume} | BR: {bitrate}")
+    except subprocess.CalledProcessError:
+        print(f"[Error] Failed to transcode: {source}", file=sys.stderr)
+
+def identify_dirty_scopes() -> Set[Path]:
+    """
+    Compares Source meta.yml files with Cached meta.yml files.
+    Returns a set of Paths (directories) where the configuration has changed.
+    """
+    dirty_scopes = set()
+
+    for root, _, files in os.walk(SOURCE_ROOT):
+        if "meta.yml" in files:
+            source_meta = Path(root) / "meta.yml"
+            rel_path = Path(root).relative_to(SOURCE_ROOT)
+            cache_meta = CACHE_ROOT / rel_path / "meta.yml"
+
+            # If cache doesn't exist, or content differs
+            if not cache_meta.exists():
+                dirty_scopes.add(Path(root))
+            else:
+                if not filecmp.cmp(source_meta, cache_meta, shallow=False):
+                    dirty_scopes.add(Path(root))
+    
+    if dirty_scopes:
+        print(f"Configuration changes detected in {len(dirty_scopes)} directories.")
+    else:
+        print("No configuration changes detected.")
+        
+    return dirty_scopes
+
+def is_file_in_dirty_scope(file_path: Path, dirty_scopes: Set[Path]) -> bool:
+    """
+    Checks if a file resides in a directory (or subdirectory) of a changed meta.yml.
+    Because configuration cascades, a change in /Music affects /Music/Artist/Album.
+    """
+    current_check = file_path.parent
+    while current_check.is_relative_to(SOURCE_ROOT):
+        if current_check in dirty_scopes:
+            return True
+        if current_check == SOURCE_ROOT:
+            break
+        current_check = current_check.parent
+    return False
+
+def update_cache(dirty_scopes: Set[Path]):
+    """
+    Copies the new meta.yml files from Source to Cache for the identified dirty scopes.
+    """
+    print("Updating configuration cache...")
+    for scope in dirty_scopes:
+        rel_path = scope.relative_to(SOURCE_ROOT)
+        dest_dir = CACHE_ROOT / rel_path
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        
+        source_meta = scope / "meta.yml"
+        dest_meta = dest_dir / "meta.yml"
+        
+        if source_meta.exists():
+            shutil.copy2(source_meta, dest_meta)
+
+def process_library():
+    if not SOURCE_ROOT.exists():
+        print(f"Source root {SOURCE_ROOT} does not exist.", file=sys.stderr)
+        sys.exit(1)
+
+    # 1. Detect Changes
+    dirty_scopes = identify_dirty_scopes()
+
+    # 2. Process Files
+    processed_files_count = 0
+    for root, _, files in os.walk(SOURCE_ROOT):
+        root_path = Path(root)
+        rel_path = root_path.relative_to(SOURCE_ROOT)
+        dest_dir = DEST_ROOT / rel_path
+
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        for file_name in files:
+            if MAX_FILES_TO_PROCESS is not None and processed_files_count >= MAX_FILES_TO_PROCESS:
+                print(f"Reached MAX_FILES_TO_PROCESS limit ({MAX_FILES_TO_PROCESS}). Stopping processing.")
+                break
+
+            source_file = root_path / file_name
+            dest_file = dest_dir / file_name
+            
+            suffix = source_file.suffix.lower()
+
+            if suffix in AUDIO_EXTENSIONS:
+                # Logic: Transcode if file is missing OR if configuration changed for this tree
+                needs_transcode = False
+                
+                if not dest_file.exists():
+                    needs_transcode = True
+                elif is_file_in_dirty_scope(source_file, dirty_scopes):
+                    needs_transcode = True
+                
+                if needs_transcode:
+                    volume_reduce = get_transcode_settings(source_file, SOURCE_ROOT)
+                    transcode_file(source_file, dest_file, volume_reduce)
+                    processed_files_count += 1
+            
+            elif suffix in IMAGE_EXTENSIONS or file_name.lower() in ['cover.jpg', 'folder.png']:
+                # For images, simple overwrite if missing or newer could be added, 
+                # but requirements imply mirroring assets.
+                if not dest_file.exists():
+                     shutil.copy2(source_file, dest_file)
+                     processed_files_count += 1
+        if MAX_FILES_TO_PROCESS is not None and processed_files_count >= MAX_FILES_TO_PROCESS:
+            break
+
+    # 3. Update Cache (Only after processing is done)
+    if dirty_scopes:
+        update_cache(dirty_scopes)
+
+if __name__ == "__main__":
+    process_library()
