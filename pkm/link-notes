@@ -130,7 +130,14 @@ def sync_links():
                         copy_with_markup_replacement(source_file, dest_file)
                     elif dest_mtime > source_mtime:
                         print(f"Updating source (destination is newer): {rel_path}")
-                        shutil.copy2(dest_file, source_file)
+                        # When copying from destination to source, we need to reverse the markup replacement
+                        with open(dest_file, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        # Replace backticks with =text= markup
+                        reversed_content = re.sub(r'`([^`\n]+)`', r'=\1=', content)
+                        with open(source_file, 'w', encoding='utf-8') as f:
+                            f.write(reversed_content)
+                        shutil.copystat(dest_file, source_file)
                     # If times are equal, no action needed
                 else:
                     print(f"Copying to destination: {rel_path}")
