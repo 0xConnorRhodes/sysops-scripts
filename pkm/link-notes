@@ -12,6 +12,7 @@ Script Requirements:
 - As a user, I want to define destination directories for specific configuration keys using a dictionary.
 - As a user, I want to read `linkedNotes` patterns to sync files by comparing modification times.
 - As a user, I want files to be synchronized so that the newer version overwrites the older one in both directories.
+- As a user, I want markup characters (=text=) to be replaced with backticks (`text`) when syncing file contents.
 - As a user, I want to read `exemptFiles` patterns to prevent specific files in the Destination from being deleted.
 - As a user, I want to ensure that ONLY files with the `.md` extension are ever candidates for deletion in the Destination.
 - As a user, I want to ensure no files are ever deleted from the source directory.
@@ -22,6 +23,7 @@ import sys
 import yaml
 import socket
 import shutil
+import re
 from pathlib import Path
 
 # --- Configuration ---
@@ -55,6 +57,23 @@ def load_config(path: Path) -> dict:
 
     with open(path, 'r') as f:
         return yaml.safe_load(f) or {}
+
+def replace_markup(content: str) -> str:
+    """Replace =text= markup with `text` backticks."""
+    return re.sub(r'=([^=\n]+)=', r'`\1`', content)
+
+def copy_with_markup_replacement(source_file: Path, dest_file: Path):
+    """Copy file from source to destination, replacing markup characters."""
+    with open(source_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    transformed_content = replace_markup(content)
+
+    with open(dest_file, 'w', encoding='utf-8') as f:
+        f.write(transformed_content)
+
+    # Preserve modification time
+    shutil.copystat(source_file, dest_file)
 
 def sync_links():
     check_hostname()
@@ -108,14 +127,14 @@ def sync_links():
 
                     if source_mtime > dest_mtime:
                         print(f"Updating destination (source is newer): {rel_path}")
-                        shutil.copy2(source_file, dest_file)
+                        copy_with_markup_replacement(source_file, dest_file)
                     elif dest_mtime > source_mtime:
                         print(f"Updating source (destination is newer): {rel_path}")
                         shutil.copy2(dest_file, source_file)
                     # If times are equal, no action needed
                 else:
                     print(f"Copying to destination: {rel_path}")
-                    shutil.copy2(source_file, dest_file)
+                    copy_with_markup_replacement(source_file, dest_file)
 
         # 2. Cleanup Dangling Files in Destination
         if dest_dir == SOURCE_DIR:
