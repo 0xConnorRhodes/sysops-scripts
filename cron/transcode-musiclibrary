@@ -7,13 +7,13 @@
 # ///
 """
 Script Requirements:
-- As a system, I want to mirror the directory structure of '/zstore/music_library/music_library' to '/scary/music_library'.
-- As a system, I want to maintain a configuration cache at '~/.local/share/music_library_transcode' that mirrors the source directory structure.
-- As a system, I want to compare source 'meta.yml' files against the cached versions to detect changes.
-- As a system, I want to identify "dirty scopes": directories where the 'meta.yml' has changed, necessitating a re-transcode of all files in that directory and its subdirectories.
-- As a system, I want to transcode audio files if they are missing from the destination OR if they reside within a "dirty scope".
-- As a system, I want to update the cache with the new 'meta.yml' files after processing is complete.
-- As a system, I want to continue using 'ffmpeg' and 'mediainfo' for audio processing as previously defined.
+- As a user, I want to mirror the directory structure of '/zstore/music_library/music_library' to '/scary/music_library'.
+- As a user, I want to maintain a configuration cache at '~/.local/share/music_library_transcode' that mirrors the source directory structure.
+- As a user, I want to compare source 'meta.yml' files against the cached versions to detect changes.
+- As a user, I want to identify "dirty scopes": directories where the 'meta.yml' has changed, necessitating a re-transcode of all files in that directory and its subdirectories.
+- As a user, I want to transcode audio files if they are missing from the destination OR if they reside within a "dirty scope".
+- As a user, I want to update the cache with the new 'meta.yml' files after processing is complete.
+- As a user, I want to continue using 'ffmpeg' and 'mediainfo' for audio processing as previously defined.
 """
 
 import os
@@ -34,11 +34,10 @@ CACHE_ROOT = Path("~/.local/share/music_library_transcode").expanduser()
 AUDIO_EXTENSIONS = {'.flac', '.m4a', '.aac', '.mp3', '.wav', '.ogg', '.alac'}
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp'}
 
-MAX_FILES_TO_PROCESS = 1
+MAX_FILES_TO_PROCESS: Optional[int] = None # Set to None to process all files, or an integer for a specific limit
 
 def get_transcode_settings(file_path: Path, root_path: Path) -> float:
     current_dir = file_path.parent
-    volume_reduce = 0.04  # Fallback safety
     
     search_path = current_dir
     dirs_to_check = []
@@ -72,7 +71,9 @@ def get_transcode_settings(file_path: Path, root_path: Path) -> float:
             except Exception as e:
                 print(f"Error reading {meta_path}: {e}", file=sys.stderr)
 
-    return volume_reduce
+    print(f"Error: Could not find a 'volume_reduce' setting in any meta.yml for the file: {file_path}", file=sys.stderr)
+    print(f"Searched from {file_path.parent} up to {root_path}.", file=sys.stderr)
+    sys.exit(1)
 
 def get_file_metadata(file_path: Path) -> Dict[str, Any]:
     cmd = [
@@ -108,7 +109,9 @@ def transcode_file(source: Path, dest: Path, volume: float):
         codec = "flac"
     elif "aac" in audio_fmt or "mpeg-4" in fmt or "m4a" in source.suffix:
         codec = "aac"
-    
+    elif "mp3" in audio_fmt or "mpeg audio" in audio_fmt or source.suffix == ".mp3":
+        codec = "libmp3lame"
+
     cmd = [
         "ffmpeg",
         "-y", 
