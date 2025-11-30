@@ -1,0 +1,51 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
+"""
+Script Requirements:
+- As a user, I want to scan '~/code/notes/df' for Markdown files to identify drafts.
+- As a user, I want to sort these files by modification time (newest first) and limit the batch to 10 files.
+- As a user, I want to open each file in NeoVim with a new line at the top containing a '#' character, starting directly in Insert Mode.
+- As a user, I want to execute an external automation script ('~/code/scripts/pkm/update-zk') immediately after the editor closes.
+- As a user, I want to verify if the file was successfully moved by the automation; if not, I want to receive a warning and pause for acknowledgement.
+"""
+
+import os
+import subprocess
+import glob
+import sys
+
+TARGET_DIR = "~/code/notes/df"
+EXTERNAL_SCRIPT = "~/code/scripts/pkm/update-zk"
+FILES_TO_PROCESS = 10
+
+def main():
+    target_path = os.path.expanduser(TARGET_DIR)
+    script_path = os.path.expanduser(EXTERNAL_SCRIPT)
+
+    md_files = glob.glob(os.path.join(target_path, "*.md"))
+    md_files.sort(key=os.path.getmtime, reverse=True)
+
+    batch_files = md_files[:FILES_TO_PROCESS]
+
+    for file_path in batch_files:
+        subprocess.run([
+            "nvim",
+            "-c", "normal! ggO#",
+            "-c", "startinsert!",
+            file_path
+        ])
+
+        subprocess.run([script_path])
+
+        if os.path.exists(file_path):
+            print("Tag inserted wasn't processed. Please add an automation for it.")
+            try:
+                input("Press Enter to acknowledge...")
+            except KeyboardInterrupt:
+                sys.exit()
+
+if __name__ == "__main__":
+    main()
