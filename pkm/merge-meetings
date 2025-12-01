@@ -1,0 +1,1158 @@
+#!/usr/bin/env -S uv run --script
+"""
+merge-meetings - A command-line utility to expand wikilink references
+in markdown files by integrating meeting file content chronologically.
+"""
+
+import argparse
+import logging
+import re
+import sys
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, List
+
+
+@dataclass
+class MeetingFile:
+    """Represents a meeting file with its content and extracted date."""
+    filename: str
+    content: str
+    date: Optional[datetime]
+    original_path: str
+
+    def __post_init__(self):
+        """Assign max datetime to files without dates for chronological sorting."""
+        if self.date is None:
+            self.date = datetime.max
+
+
+@dataclass
+class ProcessingResult:
+    """Tracks the results of the processing operation."""
+    success: bool
+    processed_files: List[str]
+    failed_files: List[str]
+    warnings: List[str]
+    final_content: str
+
+
+def setup_logging(verbose: bool = False) -> None:
+    """Configure logging with appropriate level."""
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        format='%(levelname)s: %(message)s',
+        level=level
+    )
+
+
+def resolve_input_path(filepath: str) -> Path:
+    """
+    Resolve input file path relative to current working directory.
+
+    Args:
+        filepath: Input file path provided by user (can be relative or absolute)
+
+    Returns:
+        Path: Resolved absolute path to the input file
+    """
+    try:
+        cwd = Path.cwd()
+        input_path = Path(filepath)
+
+        # If already absolute, return as-is, otherwise resolve relative to CWD
+        if input_path.is_absolute():
+            resolved_path = input_path.resolve()
+        else:
+            resolved_path = (cwd / input_path).resolve()
+
+        logging.debug(f"Resolved input path: {filepath} -> {resolved_path}")
+        return resolved_path
+
+    except Exception as e:
+        logging.error(f"Error resolving input path {filepath}: {e}")
+        raise
+
+
+def get_input_file_directory(input_path: Path) -> Path:
+    """
+    Determine base directory for meeting files (directory containing the input file).
+
+    Args:
+        input_path: Resolved path to the input file
+
+    Returns:
+        Path: Directory containing the input file
+    """
+    try:
+        input_directory = input_path.parent
+        logging.debug(f"Input file directory: {input_directory}")
+        return input_directory
+
+    except Exception as e:
+        logging.error(f"Error getting input file directory from {input_path}: {e}")
+        raise
+
+
+def get_script_location() -> Path:
+    """
+    Determine script's installation path for alias creation.
+
+    Returns:
+        Path: Absolute path to this script file
+    """
+    try:
+        script_path = Path(__file__).resolve()
+        logging.debug(f"Script location: {script_path}")
+        return script_path
+
+    except Exception as e:
+        logging.error(f"Error determining script location: {e}")
+        raise
+
+
+def display_alias_installation_instructions() -> None:
+    """
+    Display shell-specific instructions for creating a global alias.
+    Provides instructions for bash, zsh, and fish shells.
+    """
+    try:
+        script_path = get_script_location()
+
+        print("=== Alias Installation Instructions ===\n")
+        print(f"Script location: {script_path}\n")
+
+        print("To create a global 'expand-meetings' alias, add one of the following")
+        print("lines to your shell configuration file:\n")
+
+        print("For Bash (~/.bashrc or ~/.bash_profile):")
+        print(f'alias expand-meetings="{script_path}"\n')
+
+        print("For Zsh (~/.zshrc):")
+        print(f'alias expand-meetings="{script_path}"\n')
+
+        print("For Fish (~/.config/fish/config.fish):")
+        print(f'alias expand-meetings="{script_path}"\n')
+
+        print("After adding the alias, restart your terminal or run:")
+        print("  source ~/.bashrc    # for Bash")
+        print("  source ~/.zshrc     # for Zsh")
+        print("  # Fish aliases are available immediately\n")
+
+        print("Then you can use the command from any directory:")
+        print("  expand-meetings /path/to/notes.md")
+        print("  expand-meetings notes.md -o expanded.md")
+
+    except Exception as e:
+        print(f"Error displaying installation instructions: {e}")
+        sys.exit(1)
+
+
+def resolve_meeting_file_path(filename: str, base_directory: Path) -> Path:
+    """
+    Resolve meeting file path relative to input file location.
+
+    Args:
+        filename: Meeting file name (e.g., "mt_240401.md")
+        base_directory: Directory containing the input file
+
+    Returns:
+        Path: Resolved absolute path to the meeting file
+    """
+    try:
+        # Resolve meeting file relative to the input file's directory
+        meeting_path = (base_directory / filename).resolve()
+        logging.debug(f"Resolved meeting file path: {filename} -> {meeting_path}")
+        return meeting_path
+
+    except Exception as e:
+        logging.error(f"Error resolving meeting file path {filename} in {base_directory}: {e}")
+        raise
+
+
+def validate_input_file(filepath: str) -> bool:
+    """
+    Validate input file exists and is readable.
+
+    Args:
+        filepath: Path to the input file to validate
+
+    Returns:
+        bool: True if file is valid and readable, False otherwise
+    """
+    try:
+        file_path = Path(filepath)
+
+        if not file_path.exists():
+            logging.error(f"Input file does not exist: {filepath}")
+            return False
+
+        if not file_path.is_file():
+            logging.error(f"Path is not a file: {filepath}")
+            return False
+
+        # Check if file is readable
+        if not file_path.stat().st_size >= 0:  # Basic accessibility check
+            logging.error(f"Cannot access file: {filepath}")
+            return False
+
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                # Just read the first few bytes to test readability
+                f.read(1)
+        except PermissionError:
+            logging.error(f"Permission denied reading file: {filepath}")
+            return False
+        except UnicodeDecodeError:
+            logging.error(f"File is not a valid text file (encoding issue): {filepath}")
+            return False
+        except OSError as e:
+            logging.error(f"Cannot read file {filepath}: {e}")
+            return False
+
+        logging.debug(f"Input file validation successful: {filepath}")
+        return True
+
+    except Exception as e:
+        logging.error(f"Unexpected error validating file {filepath}: {e}")
+        return False
+
+
+def parse_arguments() -> argparse.Namespace:
+    """Parse and validate command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Expand wikilink references in markdown files by integrating meeting content chronologically',
+        epilog='''Examples:
+  %(prog)s notes.md                    # Process notes.md in-place
+  %(prog)s notes.md -o expanded.md     # Save results to expanded.md
+  %(prog)s notes.md --verbose          # Enable detailed logging''',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+
+    parser.add_argument(
+        'input_file',
+        metavar='INPUT_FILE',
+        nargs='?',  # Make optional
+        help='Input markdown file containing Meetings section with wikilinks (required unless --install-alias is used)'
+    )
+
+    parser.add_argument(
+        '-o', '--output',
+        dest='output_file',
+        metavar='OUTPUT_FILE',
+        help='Output file path (optional, defaults to overwriting input file)'
+    )
+
+    parser.add_argument(
+        '-v', '--verbose',
+        action='store_true',
+        help='Enable verbose logging for detailed processing information'
+    )
+
+    parser.add_argument(
+        '--install-alias',
+        action='store_true',
+        help='Display installation instructions for creating a global alias command'
+    )
+
+    return parser.parse_args()
+
+
+def load_markdown_file(filepath: str) -> str:
+    """
+    Load markdown file content.
+
+    Args:
+        filepath: Path to the markdown file to load
+
+    Returns:
+        str: The content of the markdown file
+
+    Raises:
+        FileNotFoundError: If the file doesn't exist
+        PermissionError: If the file can't be read
+        UnicodeDecodeError: If the file has encoding issues
+    """
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        logging.debug(f"Successfully loaded markdown file: {filepath} ({len(content)} characters)")
+        return content
+    except FileNotFoundError:
+        logging.error(f"Markdown file not found: {filepath}")
+        raise
+    except PermissionError:
+        logging.error(f"Permission denied reading markdown file: {filepath}")
+        raise
+    except UnicodeDecodeError as e:
+        logging.error(f"Encoding error reading markdown file {filepath}: {e}")
+        raise
+    except Exception as e:
+        logging.error(f"Unexpected error loading markdown file {filepath}: {e}")
+        raise
+
+
+def find_meetings_section(content: str) -> tuple[int, int]:
+    """
+    Find start and end positions of Meetings section.
+
+    Args:
+        content: The markdown file content to search
+
+    Returns:
+        tuple[int, int]: Start and end positions of the Meetings section.
+                        Returns (-1, -1) if no Meetings section is found.
+    """
+    # Pattern to match "# Meetings" heading (case-insensitive)
+    meetings_pattern = re.compile(r'^#\s+Meetings\s*$', re.MULTILINE | re.IGNORECASE)
+
+    match = meetings_pattern.search(content)
+    if not match:
+        logging.warning("No '# Meetings' section found in the markdown file")
+        return (-1, -1)
+
+    start_pos = match.start()
+    logging.debug(f"Found Meetings section at position {start_pos}")
+
+    # Find the end of the Meetings section by looking for the next heading at the same level or higher
+    # This pattern matches any heading that starts with # (H1) or ## (H2, H3, etc.)
+    next_heading_pattern = re.compile(r'^#\s+', re.MULTILINE)
+
+    # Search for the next heading after the Meetings section
+    search_start = match.end()
+    next_match = next_heading_pattern.search(content, search_start)
+
+    if next_match:
+        end_pos = next_match.start()
+        logging.debug(f"Meetings section ends at position {end_pos}")
+    else:
+        # If no next heading found, the Meetings section goes to the end of the file
+        end_pos = len(content)
+        logging.debug(f"Meetings section extends to end of file (position {end_pos})")
+
+    return (start_pos, end_pos)
+
+
+def extract_meetings_bullet_points(content: str, start: int, end: int) -> List[str]:
+    """
+    Extract bullet points from Meetings section.
+
+    Args:
+        content: The markdown file content
+        start: Start position of the Meetings section
+        end: End position of the Meetings section
+
+    Returns:
+        List[str]: List of bullet point lines found in the Meetings section.
+                   Returns empty list if no bullet points are found.
+    """
+    if start == -1 or end == -1:
+        logging.warning("Invalid Meetings section positions provided")
+        return []
+
+    # Extract the Meetings section content
+    meetings_content = content[start:end]
+
+    # Pattern to match bullet points (lines starting with -, *, or +)
+    # This captures both the bullet marker and the content
+    bullet_pattern = re.compile(r'^[\s]*[-*+]\s+(.+)$', re.MULTILINE)
+
+    matches = bullet_pattern.findall(meetings_content)
+
+    if not matches:
+        logging.info("No bullet points found in the Meetings section")
+        return []
+
+    # Return the full bullet point lines (with markers) for processing
+    bullet_lines = []
+    for line in meetings_content.split('\n'):
+        line = line.strip()
+        if re.match(r'^[-*+]\s+', line):
+            bullet_lines.append(line)
+
+    logging.debug(f"Found {len(bullet_lines)} bullet points in Meetings section")
+    for i, bullet in enumerate(bullet_lines):
+        logging.debug(f"  Bullet {i+1}: {bullet}")
+
+    return bullet_lines
+
+
+def parse_wikilink_pattern(text: str) -> List[str]:
+    """
+    Parse [[filename]] patterns using regex for robust wikilink detection.
+
+    Args:
+        text: Text content to search for wikilink patterns
+
+    Returns:
+        List[str]: List of filenames extracted from wikilinks (without brackets)
+    """
+    # Pattern to match wikilinks: [[filename]]
+    # Captures content between double square brackets
+    wikilink_pattern = re.compile(r'\[\[([^\]]+)\]\]')
+
+    matches = wikilink_pattern.findall(text)
+
+    if matches:
+        logging.debug(f"Found {len(matches)} wikilink patterns in text")
+        for i, match in enumerate(matches):
+            logging.debug(f"  Wikilink {i+1}: [[{match}]]")
+
+    return matches
+
+
+def sanitize_filename(filename: str) -> Optional[str]:
+    """
+    Sanitize extracted filename to prevent directory traversal and ensure validity.
+
+    Args:
+        filename: Raw filename extracted from wikilink
+
+    Returns:
+        Optional[str]: Sanitized filename or None if filename is invalid/malicious
+    """
+    if not filename or not filename.strip():
+        logging.warning("Empty or whitespace-only filename detected")
+        return None
+
+    filename = filename.strip()
+
+    # Check for directory traversal attempts
+    if '..' in filename or '/' in filename or '\\' in filename:
+        logging.warning(f"Directory traversal attempt detected in filename: {filename}")
+        return None
+
+    # Check for invalid characters that could cause issues
+    invalid_chars = ['<', '>', ':', '"', '|', '?', '*']
+    if any(char in filename for char in invalid_chars):
+        logging.warning(f"Invalid characters detected in filename: {filename}")
+        return None
+
+    # Check for reserved names (Windows)
+    reserved_names = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4',
+                     'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2',
+                     'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9']
+
+    name_without_ext = filename.replace('.md', '').upper()
+    if name_without_ext in reserved_names:
+        logging.warning(f"Reserved filename detected: {filename}")
+        return None
+
+    # Check filename length (reasonable limit)
+    if len(filename) > 255:
+        logging.warning(f"Filename too long (>{255} characters): {filename}")
+        return None
+
+    return filename
+
+
+def extract_wikilinks(bullet_points: List[str]) -> List[str]:
+    """
+    Extract wikilink filenames from bullet points using regex pattern [[filename]].
+
+    Args:
+        bullet_points: List of bullet point strings to search for wikilinks
+
+    Returns:
+        List[str]: List of unique, sanitized filenames extracted from wikilinks.
+                   Filenames have .md extension added if not present.
+    """
+    if not bullet_points:
+        logging.info("No bullet points provided for wikilink extraction")
+        return []
+
+    all_wikilinks = []
+    malformed_count = 0
+
+    # Process each bullet point to extract wikilinks
+    for bullet in bullet_points:
+        try:
+            wikilinks = parse_wikilink_pattern(bullet)
+            all_wikilinks.extend(wikilinks)
+        except Exception as e:
+            logging.warning(f"Error parsing wikilinks from bullet point '{bullet}': {e}")
+            malformed_count += 1
+
+    if malformed_count > 0:
+        logging.warning(f"Encountered {malformed_count} malformed bullet points during wikilink extraction")
+
+    if not all_wikilinks:
+        logging.info("No wikilinks found in bullet points")
+        return []
+
+    # Process and sanitize filenames
+    processed_filenames = []
+    invalid_count = 0
+
+    for raw_filename in all_wikilinks:
+        try:
+            # Sanitize the filename
+            sanitized = sanitize_filename(raw_filename)
+
+            if sanitized is None:
+                invalid_count += 1
+                continue
+
+            # Add .md extension if not present
+            if not sanitized.endswith('.md'):
+                sanitized = sanitized + '.md'
+
+            # Add to list if not already present (avoid duplicates)
+            if sanitized not in processed_filenames:
+                processed_filenames.append(sanitized)
+
+        except Exception as e:
+            logging.warning(f"Error processing filename '{raw_filename}': {e}")
+            invalid_count += 1
+
+    if invalid_count > 0:
+        logging.warning(f"Skipped {invalid_count} invalid or malicious filenames")
+
+    logging.info(f"Extracted {len(processed_filenames)} unique valid wikilink filenames")
+    for i, filename in enumerate(processed_filenames):
+        logging.info(f"  Wikilink file {i+1}: {filename}")
+
+    return processed_filenames
+
+
+def adjust_heading_levels(content: str, level_increase: int = 2) -> str:
+    """
+    Increase markdown heading levels by specified amount.
+
+    Args:
+        content: The markdown content to process
+        level_increase: Number of levels to increase headings by (default: 2)
+
+    Returns:
+        str: Content with adjusted heading levels
+    """
+    if not content:
+        return content
+
+    try:
+        # Pattern to match markdown headings (1-6 levels)
+        # Captures the heading markers (#) and the content
+        heading_pattern = re.compile(r'^(#{1,6})(\s+.*)$', re.MULTILINE)
+
+        def adjust_heading(match):
+            """Helper function to adjust individual heading levels."""
+            current_hashes = match.group(1)  # The # symbols
+            heading_content = match.group(2)  # The space and heading text
+
+            # Calculate new heading level
+            current_level = len(current_hashes)
+            new_level = min(current_level + level_increase, 6)  # Cap at H6
+
+            # Create new heading with adjusted level
+            new_hashes = '#' * new_level
+            return new_hashes + heading_content
+
+        # Apply the adjustment to all headings
+        adjusted_content = heading_pattern.sub(adjust_heading, content)
+
+        # Count how many headings were adjusted
+        original_headings = len(heading_pattern.findall(content))
+        if original_headings > 0:
+            logging.debug(f"Adjusted {original_headings} headings by +{level_increase} levels")
+
+        return adjusted_content
+
+    except Exception as e:
+        logging.warning(f"Error adjusting heading levels: {e}")
+        return content
+
+
+def extract_date_from_filename(filename: str) -> Optional[datetime]:
+    """
+    Extract date from filename using regex pattern mt_YYMMDD.
+
+    Args:
+        filename: The filename to extract date from
+
+    Returns:
+        Optional[datetime]: Extracted datetime object if pattern found, None otherwise
+    """
+    try:
+        # Pattern to match mt_YYMMDD format
+        date_pattern = re.compile(r'mt_(\d{6})')
+
+        match = date_pattern.search(filename)
+        if not match:
+            logging.debug(f"No date pattern found in filename: {filename}")
+            return None
+
+        # Extract the 6-digit date string
+        date_str = match.group(1)
+
+        # Parse YYMMDD format
+        try:
+            # Assume years 00-29 are 2000-2029, 30-99 are 1930-1999
+            year_str = date_str[:2]
+            month_str = date_str[2:4]
+            day_str = date_str[4:6]
+
+            year = int(year_str)
+            month = int(month_str)
+            day = int(day_str)
+
+            # Convert 2-digit year to 4-digit year
+            if year <= 29:
+                year += 2000
+            else:
+                year += 1900
+
+            # Validate month and day ranges
+            if month < 1 or month > 12:
+                logging.warning(f"Invalid month in date pattern from {filename}: {month}")
+                return None
+
+            if day < 1 or day > 31:
+                logging.warning(f"Invalid day in date pattern from {filename}: {day}")
+                return None
+
+            # Create datetime object
+            extracted_date = datetime(year, month, day)
+            logging.debug(f"Extracted date from {filename}: {extracted_date.strftime('%Y-%m-%d')}")
+            return extracted_date
+
+        except ValueError as e:
+            logging.warning(f"Invalid date format in filename {filename}: {e}")
+            return None
+
+    except Exception as e:
+        logging.warning(f"Error extracting date from filename {filename}: {e}")
+        return None
+
+
+def load_meeting_file(filename: str, base_directory: Path) -> Optional[MeetingFile]:
+    """
+    Load and process a single meeting file from the specified base directory.
+
+    Args:
+        filename: Name of the meeting file to load (should include .md extension)
+        base_directory: Directory containing the input file (where meeting files are located)
+
+    Returns:
+        Optional[MeetingFile]: MeetingFile object if successful, None if file doesn't exist
+                               or cannot be read
+    """
+    try:
+        # Resolve meeting file path relative to the input file's directory
+        file_path = resolve_meeting_file_path(filename, base_directory)
+
+        # Check if file exists
+        if not file_path.exists():
+            logging.warning(f"Meeting file does not exist: {filename}")
+            return None
+
+        # Check if it's actually a file
+        if not file_path.is_file():
+            logging.warning(f"Path is not a file: {filename}")
+            return None
+
+        # Read the file content
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except PermissionError:
+            logging.warning(f"Permission denied reading meeting file: {filename}")
+            return None
+        except UnicodeDecodeError as e:
+            logging.warning(f"Encoding error reading meeting file {filename}: {e}")
+            return None
+        except OSError as e:
+            logging.warning(f"Cannot read meeting file {filename}: {e}")
+            return None
+
+        # Extract date from filename
+        date = extract_date_from_filename(filename)
+
+        # Adjust heading levels in content
+        adjusted_content = adjust_heading_levels(content)
+
+        # Create MeetingFile object
+        meeting_file = MeetingFile(
+            filename=filename,
+            content=adjusted_content,
+            date=date,
+            original_path=str(file_path.absolute())
+        )
+
+        logging.info(f"Successfully loaded meeting file: {filename}")
+        if date:
+            logging.debug(f"  Extracted date: {date.strftime('%Y-%m-%d')}")
+        else:
+            logging.debug("  No date pattern found in filename")
+
+        return meeting_file
+
+    except Exception as e:
+        logging.warning(f"Unexpected error loading meeting file {filename}: {e}")
+        return None
+
+
+def sort_meetings_chronologically(meetings: List[MeetingFile]) -> List[MeetingFile]:
+    """
+    Sort meetings from oldest to newest based on extracted dates.
+    Files without dates are placed at the end of the sequence.
+
+    Args:
+        meetings: List of MeetingFile objects to sort
+
+    Returns:
+        List[MeetingFile]: Sorted list of meetings in chronological order
+    """
+    if not meetings:
+        logging.debug("No meetings to sort")
+        return []
+
+    try:
+        # Sort by date - files with None dates will have datetime.max from __post_init__
+        sorted_meetings = sorted(meetings, key=lambda meeting: meeting.date)
+
+        # Count meetings with and without dates for logging
+        with_dates = sum(1 for m in meetings if m.date != datetime.max)
+        without_dates = len(meetings) - with_dates
+
+        logging.info(f"Sorted {len(meetings)} meetings chronologically")
+        logging.debug(f"  {with_dates} meetings with dates, {without_dates} without dates")
+
+        # Log the sorted order for debugging
+        for i, meeting in enumerate(sorted_meetings):
+            if meeting.date == datetime.max:
+                logging.debug(f"  {i+1}. {meeting.filename} (no date - placed at end)")
+            else:
+                logging.debug(f"  {i+1}. {meeting.filename} ({meeting.date.strftime('%Y-%m-%d')})")
+
+        return sorted_meetings
+
+    except Exception as e:
+        logging.error(f"Error sorting meetings chronologically: {e}")
+        # Return original list if sorting fails
+        return meetings
+
+
+def generate_meeting_section_content(meetings: List[MeetingFile]) -> str:
+    """
+    Generate integrated meeting content with H2 headings for each meeting.
+
+    Args:
+        meetings: List of MeetingFile objects (should be chronologically sorted)
+
+    Returns:
+        str: Formatted content with H2 headings and meeting content
+    """
+    if not meetings:
+        logging.debug("No meetings to generate content for")
+        return ""
+
+    try:
+        content_parts = []
+
+        for meeting in meetings:
+            # Create H2 heading for the meeting
+            # Use filename without .md extension as the heading
+            heading_name = meeting.filename
+            if heading_name.endswith('.md'):
+                heading_name = heading_name[:-3]  # Remove .md extension
+
+            # Add date to heading if available
+            if meeting.date != datetime.max:
+                date_str = meeting.date.strftime('%Y-%m-%d')
+                heading_text = f"## {heading_name} ({date_str})"
+            else:
+                heading_text = f"## {heading_name}"
+
+            content_parts.append(heading_text)
+            content_parts.append("")  # Empty line after heading
+
+            # Add the meeting content (headings already adjusted by load_meeting_file)
+            if meeting.content.strip():
+                content_parts.append(meeting.content.strip())
+            else:
+                content_parts.append("*No content*")
+
+            content_parts.append("")  # Empty line between meetings
+
+        # Join all parts with newlines
+        integrated_content = "\n".join(content_parts)
+
+        logging.info(f"Generated integrated content for {len(meetings)} meetings")
+        logging.debug(f"Total content length: {len(integrated_content)} characters")
+
+        return integrated_content
+
+    except Exception as e:
+        logging.error(f"Error generating meeting section content: {e}")
+        return ""
+
+
+def remove_wikilink_bullets(content: str, meetings_start: int, meetings_end: int) -> str:
+    """
+    Remove bullet points containing wikilinks from the Meetings section.
+    Preserves the "# Meetings" heading while removing wikilink references.
+
+    Args:
+        content: The markdown file content
+        meetings_start: Start position of the Meetings section
+        meetings_end: End position of the Meetings section
+
+    Returns:
+        str: Content with wikilink bullet points removed from Meetings section
+    """
+    if meetings_start == -1 or meetings_end == -1:
+        logging.error("Invalid Meetings section positions for wikilink removal")
+        return content
+
+    try:
+        # Extract the parts of the original content
+        before_meetings = content[:meetings_start]
+        after_meetings = content[meetings_end:]
+
+        # Extract the Meetings section content
+        meetings_content = content[meetings_start:meetings_end]
+
+        # Split into lines for processing
+        lines = meetings_content.split('\n')
+        cleaned_lines = []
+        removed_count = 0
+
+        for line in lines:
+            # Check if this is a bullet point line containing wikilinks
+            if re.match(r'^[\s]*[-*+]\s+', line) and re.search(r'\[\[([^\]]+)\]\]', line):
+                # This is a bullet point with wikilinks - remove it
+                logging.debug(f"Removing wikilink bullet: {line.strip()}")
+                removed_count += 1
+            else:
+                # Keep this line (including the heading and non-wikilink content)
+                cleaned_lines.append(line)
+
+        # Reconstruct the cleaned Meetings section
+        cleaned_meetings_content = '\n'.join(cleaned_lines)
+
+        # Combine all parts
+        cleaned_content = before_meetings + cleaned_meetings_content + after_meetings
+
+        logging.info(f"Removed {removed_count} wikilink bullet points from Meetings section")
+
+        return cleaned_content
+
+    except Exception as e:
+        logging.error(f"Error removing wikilink bullets: {e}")
+        return content
+
+
+def integrate_content(original_content: str, meetings_content: str,
+                     meetings_start: int, meetings_end: int) -> str:
+    """
+    Replace original Meetings section with integrated meeting content.
+
+    Args:
+        original_content: The original markdown file content
+        meetings_content: The generated meeting content to insert
+        meetings_start: Start position of the original Meetings section
+        meetings_end: End position of the original Meetings section
+
+    Returns:
+        str: Updated content with Meetings section replaced
+    """
+    if meetings_start == -1 or meetings_end == -1:
+        logging.error("Invalid Meetings section positions for content integration")
+        return original_content
+
+    try:
+        # Extract the parts of the original content
+        before_meetings = original_content[:meetings_start]
+        after_meetings = original_content[meetings_end:]
+
+        # Create the new Meetings section
+        # Keep the original "# Meetings" heading and add the integrated content
+        new_meetings_section = "# Meetings\n\n"
+        if meetings_content.strip():
+            new_meetings_section += meetings_content.strip() + "\n"
+
+        # Combine all parts
+        integrated_content = before_meetings + new_meetings_section + after_meetings
+
+        logging.info("Successfully integrated meeting content into original document")
+        logging.debug(f"Original content length: {len(original_content)} characters")
+        logging.debug(f"Integrated content length: {len(integrated_content)} characters")
+
+        return integrated_content
+
+    except Exception as e:
+        logging.error(f"Error integrating content: {e}")
+        return original_content
+
+
+def cleanup_meeting_files(filenames: List[str], base_directory: Path, dry_run: bool = False) -> List[str]:
+    """
+    Delete meeting files and return list of failures.
+    Handles deletion failures gracefully with logging but doesn't revert content changes.
+    Skips file deletion when dry_run is True (preserves originals).
+
+    Args:
+        filenames: List of meeting file names to delete
+        base_directory: Directory containing the meeting files
+        dry_run: If True, skip actual file deletion (preserve originals)
+
+    Returns:
+        List[str]: List of filenames that failed to delete (empty if all successful or dry_run)
+    """
+    if not filenames:
+        logging.debug("No meeting files to clean up")
+        return []
+
+    if dry_run:
+        logging.info(f"Dry run mode: Preserving {len(filenames)} original meeting files")
+        for filename in filenames:
+            logging.debug(f"  Preserved: {filename}")
+        return []
+
+    failed_deletions = []
+    successful_deletions = 0
+
+    logging.info(f"Starting cleanup of {len(filenames)} meeting files")
+
+    for filename in filenames:
+        try:
+            # Resolve meeting file path relative to the input file's directory
+            file_path = resolve_meeting_file_path(filename, base_directory)
+
+            # Check if file exists before attempting deletion
+            if not file_path.exists():
+                logging.debug(f"File already doesn't exist, skipping: {filename}")
+                continue
+
+            # Check if it's actually a file (not a directory)
+            if not file_path.is_file():
+                logging.warning(f"Path is not a file, skipping deletion: {filename}")
+                failed_deletions.append(filename)
+                continue
+
+            # Attempt to delete the file
+            file_path.unlink()
+            successful_deletions += 1
+            logging.debug(f"Successfully deleted: {filename}")
+
+        except PermissionError:
+            logging.warning(f"Permission denied deleting file: {filename}")
+            failed_deletions.append(filename)
+        except OSError as e:
+            logging.warning(f"OS error deleting file {filename}: {e}")
+            failed_deletions.append(filename)
+        except Exception as e:
+            logging.warning(f"Unexpected error deleting file {filename}: {e}")
+            failed_deletions.append(filename)
+
+    # Log summary
+    if successful_deletions > 0:
+        logging.info(f"Successfully deleted {successful_deletions} meeting files")
+
+    if failed_deletions:
+        logging.warning(f"Failed to delete {len(failed_deletions)} meeting files:")
+        for failed_file in failed_deletions:
+            logging.warning(f"  Failed: {failed_file}")
+        logging.info("Content changes have been preserved despite cleanup failures")
+    else:
+        logging.info("All meeting files cleaned up successfully")
+
+    return failed_deletions
+
+
+def main() -> None:
+    """Main entry point for the script."""
+    try:
+        args = parse_arguments()
+        setup_logging(args.verbose)
+
+        # Handle --install-alias flag
+        if args.install_alias:
+            display_alias_installation_instructions()
+            return
+
+        # Validate that input_file is provided when not using --install-alias
+        if not args.input_file:
+            logging.error("Input file is required unless --install-alias is used")
+            print("Error: Input file is required unless --install-alias is used")
+            print("Use --help for usage information")
+            sys.exit(1)
+
+        logging.info(f"Starting expand_meetings processing for: {args.input_file}")
+
+        # Resolve input file path relative to current working directory
+        input_path = resolve_input_path(args.input_file)
+        input_directory = get_input_file_directory(input_path)
+
+        logging.debug(f"Resolved input file path: {input_path}")
+        logging.debug(f"Input file directory (for meeting files): {input_directory}")
+
+        # Validate input file before processing
+        if not validate_input_file(str(input_path)):
+            logging.error("Input file validation failed")
+            sys.exit(1)
+
+        # Determine output file and whether to preserve originals
+        if args.output_file:
+            # Resolve output file relative to current working directory
+            output_path = resolve_input_path(args.output_file)
+            output_file = str(output_path)
+        else:
+            output_file = str(input_path)  # In-place editing
+        preserve_originals = args.output_file is not None
+        logging.info(f"Output will be written to: {output_file}")
+        if preserve_originals:
+            logging.info("Original meeting files will be preserved (output file specified)")
+
+        # Initialize processing result tracking
+        result = ProcessingResult(
+            success=False,
+            processed_files=[],
+            failed_files=[],
+            warnings=[],
+            final_content=""
+        )
+
+        try:
+            # Step 1: Load the markdown file
+            logging.info("Loading markdown file...")
+            original_content = load_markdown_file(str(input_path))
+
+            # Step 2: Find the Meetings section
+            logging.info("Locating Meetings section...")
+            meetings_start, meetings_end = find_meetings_section(original_content)
+
+            if meetings_start == -1:
+                logging.error("No Meetings section found in the input file")
+                result.warnings.append("No Meetings section found")
+                sys.exit(1)
+
+            # Step 3: Extract bullet points from Meetings section
+            logging.info("Extracting bullet points from Meetings section...")
+            bullet_points = extract_meetings_bullet_points(original_content, meetings_start, meetings_end)
+
+            if not bullet_points:
+                logging.warning("No bullet points found in Meetings section")
+                result.warnings.append("No bullet points found in Meetings section")
+                result.final_content = original_content
+                result.success = True
+
+                # Write output file even if no processing needed
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    f.write(result.final_content)
+                logging.info("No processing needed - file written unchanged")
+                return
+
+            # Step 4: Extract wikilinks from bullet points
+            logging.info("Extracting wikilinks from bullet points...")
+            wikilink_filenames = extract_wikilinks(bullet_points)
+
+            if not wikilink_filenames:
+                logging.warning("No valid wikilinks found in bullet points")
+                result.warnings.append("No valid wikilinks found")
+                result.final_content = original_content
+                result.success = True
+
+                # Write output file even if no processing needed
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    f.write(result.final_content)
+                logging.info("No wikilinks to process - file written unchanged")
+                return
+
+            # Step 5: Load meeting files
+            logging.info(f"Loading {len(wikilink_filenames)} meeting files...")
+            meeting_files = []
+
+            for filename in wikilink_filenames:
+                logging.info(f"Processing meeting file: {filename}")
+                meeting_file = load_meeting_file(filename, input_directory)
+
+                if meeting_file:
+                    meeting_files.append(meeting_file)
+                    result.processed_files.append(filename)
+                    logging.info(f"Successfully loaded: {filename}")
+                else:
+                    result.failed_files.append(filename)
+                    result.warnings.append(f"Failed to load meeting file: {filename}")
+                    logging.warning(f"Failed to load meeting file: {filename}")
+
+            if not meeting_files:
+                logging.error("No meeting files could be loaded")
+                result.warnings.append("No meeting files could be loaded")
+                result.final_content = original_content
+
+                # Write output file with original content
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    f.write(result.final_content)
+                logging.info("No meeting files available - file written unchanged")
+                return
+
+            # Step 6: Sort meetings chronologically
+            logging.info("Sorting meetings chronologically...")
+            sorted_meetings = sort_meetings_chronologically(meeting_files)
+
+            # Step 7: Generate integrated meeting content
+            logging.info("Generating integrated meeting content...")
+            meetings_content = generate_meeting_section_content(sorted_meetings)
+
+            # Step 8: Integrate content into original document
+            logging.info("Integrating content into original document...")
+            integrated_content = integrate_content(original_content, meetings_content,
+                                                 meetings_start, meetings_end)
+
+            # Step 9: Remove original wikilink bullets
+            logging.info("Cleaning up original wikilink bullet points...")
+            final_content = remove_wikilink_bullets(integrated_content, meetings_start, meetings_end)
+
+            # Step 10: Write the output file
+            logging.info(f"Writing output to: {output_file}")
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(final_content)
+
+            # Step 11: Cleanup meeting files (if not preserving originals)
+            logging.info("Performing cleanup operations...")
+            cleanup_failures = cleanup_meeting_files(result.processed_files, input_directory, dry_run=preserve_originals)
+
+            if cleanup_failures:
+                result.warnings.extend([f"Failed to delete: {f}" for f in cleanup_failures])
+
+            # Update final result
+            result.final_content = final_content
+            result.success = True
+
+            # Log final summary
+            logging.info("Processing completed successfully!")
+            logging.info(f"Processed {len(result.processed_files)} meeting files")
+            if result.failed_files:
+                logging.info(f"Failed to process {len(result.failed_files)} files: {', '.join(result.failed_files)}")
+            if result.warnings:
+                logging.info(f"Encountered {len(result.warnings)} warnings during processing")
+
+        except Exception as processing_error:
+            logging.error(f"Error during processing pipeline: {processing_error}")
+            result.warnings.append(f"Processing error: {str(processing_error)}")
+
+            # Try to write original content as fallback
+            try:
+                if 'original_content' in locals():
+                    with open(output_file, 'w', encoding='utf-8') as f:
+                        f.write(original_content)
+                    logging.info("Wrote original content as fallback due to processing error")
+                    result.final_content = original_content
+            except Exception as fallback_error:
+                logging.error(f"Failed to write fallback content: {fallback_error}")
+                raise processing_error
+
+            raise processing_error
+
+    except KeyboardInterrupt:
+        logging.error("Processing interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
