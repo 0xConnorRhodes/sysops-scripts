@@ -124,7 +124,7 @@ task_file = new_task.create_task_file(task_name: task_data[:task_name], file_con
 if ENV['TERMUX_VERSION']
   exec("termux-open \"#{task_file}\"")
 elsif RUBY_PLATFORM.include?("darwin")
-  exec("#{ENV['HOME']}/.nix-profile/bin/code \"#{ENV['HOME']}/code/notes/#{File.basename(task_file)}\"")
+  exec("/opt/homebrew/bin/code \"#{ENV['HOME']}/code/notes/#{File.basename(task_file)}\"")
 else
   exec("nvim \"#{task_file}\"")
 end
