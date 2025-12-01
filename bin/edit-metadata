@@ -1,15 +1,19 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["PyYAML"]
 # ///
 """
 Script Requirements:
 - As a user, I want to provide an audio file path as a CLI argument.
 - As a user, I want to open a Neovim buffer pre-populated with existing metadata.
 - As a user, I want the script to auto-detect 'cover.jpg' or 'cover.png' and apply it.
+- As a user, I want the script to read metadata from a 'meta.yml' file in the same directory if it exists.
+- As a user, I want the script to populate fields from 'meta.yml' when the existing file metadata is blank.
+- As a user, I want the script to prioritize existing file metadata over 'meta.yml' when both are present.
+- As a user, I want the script to auto-populate the Track Name with the file basename (without extension) when it's blank.
 - As a user, I want the script to overwrite the existing file with new metadata.
-- As a user, I want the script to create an empty '.changed' file in the directory ONLY if metadata was actually modified.
+- As a user, I want the script to create an empty '.changed' file in the directory ONLY if metadata was actually modified from the original file's metadata (not including auto-populated defaults).
 """
 
 import sys
@@ -17,6 +21,7 @@ import os
 import subprocess
 import tempfile
 import re
+import yaml
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -41,6 +46,29 @@ def get_artwork_path(audio_file_path: Path) -> Optional[Path]:
         if cover.exists():
             return cover
     return None
+
+def read_meta_yaml(audio_file_path: Path) -> Dict[str, str]:
+    """Read metadata from meta.yml file in the same directory as the audio file."""
+    meta_file = audio_file_path.parent / "meta.yml"
+    if not meta_file.exists():
+        return {}
+
+    try:
+        with open(meta_file, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+
+        if not data or 'metadata' not in data:
+            return {}
+
+        metadata = data['metadata']
+        # Only return fields that are in our METADATA_MAP
+        return {
+            key: str(value) for key, value in metadata.items()
+            if key in METADATA_MAP
+        }
+    except (yaml.YAMLError, IOError, UnicodeDecodeError):
+        # If there's any error reading the YAML file, return empty dict
+        return {}
 
 def parse_buffer(content: str) -> Dict[str, str]:
     data = {}
@@ -129,11 +157,28 @@ def main():
     # 1. Read existing metadata
     current_data = handler.read(file_path)
 
-    # 2. Edit in Neovim
-    new_data = edit_in_neovim(current_data)
+    # 1.5. Read metadata from meta.yml and merge with existing data
+    meta_yaml_data = read_meta_yaml(file_path)
+
+    # For each field, prefer existing data if present, otherwise use meta.yml data
+    # Special case for Track Name: use file basename if no existing data or meta.yml data
+    merged_data = {}
+    for field_name in METADATA_MAP.keys():
+        if current_data.get(field_name):
+            merged_data[field_name] = current_data[field_name]
+        elif meta_yaml_data.get(field_name):
+            merged_data[field_name] = meta_yaml_data[field_name]
+        elif field_name == "Track Name":
+            # Auto-populate Track Name with file basename (without extension)
+            merged_data[field_name] = file_path.stem
+        else:
+            merged_data[field_name] = ""
+
+    # 2. Edit in Neovim with merged data
+    new_data = edit_in_neovim(merged_data)
 
     # 3. Check for changes before writing
-    # We compare dictionary content to ensure we only touch .changed if actual edits happened
+    # We compare against the original file metadata to detect actual user edits
     if new_data == current_data:
         print("No changes detected in metadata. Exiting.")
         return
