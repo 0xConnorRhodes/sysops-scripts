@@ -210,6 +210,137 @@ def cleanup_changed_files(dirty_scopes: Set[Path]):
             except OSError as e:
                 print(f"Warning: Could not remove .changed file from {scope}: {e}", file=sys.stderr)
 
+def identify_dangling_files() -> Set[Path]:
+    """
+    Identifies AUDIO files in the destination that no longer exist in the source.
+    Excludes _playlist folder and non-audio files from pruning.
+    Returns a set of destination file paths that should be removed.
+    """
+    dangling_files = set()
+
+    # Collect all source audio files only
+    source_files = set()
+    for root, dirs, files in os.walk(SOURCE_ROOT):
+        # Skip _playlist folder at any level
+        if '_playlist' in dirs:
+            dirs.remove('_playlist')
+
+        root_path = Path(root)
+        for file_name in files:
+            suffix = Path(file_name).suffix.lower()
+            # Only track audio files for dangling file detection
+            if suffix in AUDIO_EXTENSIONS:
+                source_file = root_path / file_name
+                rel_path = source_file.relative_to(SOURCE_ROOT)
+                source_files.add(rel_path)
+
+    # Check destination audio files against source
+    for root, dirs, files in os.walk(DEST_ROOT):
+        # Skip _playlist folder at any level
+        if '_playlist' in dirs:
+            dirs.remove('_playlist')
+
+        root_path = Path(root)
+        for file_name in files:
+            dest_file = root_path / file_name
+            suffix = Path(file_name).suffix.lower()
+
+            # Only consider audio files for pruning
+            if suffix not in AUDIO_EXTENSIONS:
+                continue
+
+            rel_path = dest_file.relative_to(DEST_ROOT)
+
+            # Skip if corresponding source file exists
+            if rel_path in source_files:
+                continue
+
+            # This audio file exists in destination but not in source
+            dangling_files.add(dest_file)
+
+    if dangling_files:
+        print(f"Found {len(dangling_files)} dangling files in destination that will be removed.")
+    else:
+        print("No dangling files found in destination.")
+
+    return dangling_files
+
+def copy_playlist_folder():
+    """
+    Copies the _playlists folder from source to destination.
+    Copies all m3u files but excludes the .git folder.
+    Always overwrites the destination _playlists folder.
+    """
+    source_playlist = SOURCE_ROOT / "_playlists"
+    dest_playlist = DEST_ROOT / "_playlists"
+
+    if not source_playlist.exists():
+        print("No _playlists folder found in source.")
+        return
+
+    print("Copying _playlists folder...")
+
+    # Remove destination _playlists folder if it exists
+    if dest_playlist.exists():
+        try:
+            shutil.rmtree(dest_playlist)
+            print(f"Removed existing {dest_playlist.relative_to(DEST_ROOT)}")
+        except OSError as e:
+            print(f"Warning: Could not remove {dest_playlist}: {e}", file=sys.stderr)
+            return
+
+    # Create destination _playlists folder
+    dest_playlist.mkdir(parents=True, exist_ok=True)
+
+    # Copy all files and folders except .git
+    for item in source_playlist.iterdir():
+        if item.name == ".git":
+            print(f"Skipping .git folder in _playlists")
+            continue
+
+        source_item = source_playlist / item.name
+        dest_item = dest_playlist / item.name
+
+        try:
+            if source_item.is_dir():
+                # Recursively copy directories
+                shutil.copytree(source_item, dest_item)
+                print(f"[Copied dir] {item.name}")
+            else:
+                # Copy files
+                shutil.copy2(source_item, dest_item)
+                print(f"[Copied file] {item.name}")
+        except OSError as e:
+            print(f"Warning: Could not copy {item.name}: {e}", file=sys.stderr)
+
+def prune_dangling_files(dangling_files: Set[Path]):
+    """
+    Removes dangling files from the destination directory.
+    """
+    if not dangling_files:
+        return
+
+    print(f"Pruning {len(dangling_files)} dangling files from destination...")
+    for file_path in dangling_files:
+        try:
+            file_path.unlink()
+            print(f"[Removed] {file_path.relative_to(DEST_ROOT)}")
+        except OSError as e:
+            print(f"Warning: Could not remove {file_path}: {e}", file=sys.stderr)
+
+    # Also remove empty directories
+    print("Removing empty directories...")
+    for root, dirs, files in os.walk(DEST_ROOT, topdown=False):
+        root_path = Path(root)
+        try:
+            # Only remove if directory is empty
+            if not os.listdir(root_path):
+                root_path.rmdir()
+                print(f"[Removed empty dir] {root_path.relative_to(DEST_ROOT)}")
+        except OSError:
+            # Directory not empty or other error, skip
+            pass
+
 def process_library():
     if not SOURCE_ROOT.exists():
         print(f"Source root {SOURCE_ROOT} does not exist.", file=sys.stderr)
@@ -218,7 +349,14 @@ def process_library():
     # 1. Detect Changes
     dirty_scopes = identify_dirty_scopes()
 
-    # 2. Process Files
+    # 2. Copy _playlists folder
+    copy_playlist_folder()
+
+    # 3. Identify and prune dangling files (files removed from source)
+    dangling_files = identify_dangling_files()
+    prune_dangling_files(dangling_files)
+
+    # 4. Process Files
     processed_files_count = 0
     for root, _, files in os.walk(SOURCE_ROOT):
         root_path = Path(root)
@@ -260,7 +398,7 @@ def process_library():
         if MAX_FILES_TO_PROCESS is not None and processed_files_count >= MAX_FILES_TO_PROCESS:
             break
 
-    # 3. Update Cache (Only after processing is done)
+    # 4. Update Cache (Only after processing is done)
     if dirty_scopes:
         update_cache(dirty_scopes)
         cleanup_changed_files(dirty_scopes)
