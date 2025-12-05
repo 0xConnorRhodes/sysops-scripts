@@ -63,6 +63,20 @@ def create_ubuntu_container():
     if not result:
         print("Warning: Failed to set password")
 
+    # Install curl
+    print("Installing curl...")
+    curl_cmd = f"incus exec {CONTAINER_NAME} -- apt install -y curl"
+    result = run_command(curl_cmd, check=True)
+    if not result:
+        print("Warning: Failed to install curl")
+
+    # Install uv as ubuntu user
+    print("Installing uv as ubuntu user...")
+    uv_cmd = f"incus exec {CONTAINER_NAME} -- su - ubuntu -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'"
+    result = run_command(uv_cmd, check=True)
+    if not result:
+        print("Warning: Failed to install uv")
+
     # Run console command
     print(f"\nConnecting to console for container '{CONTAINER_NAME}'...")
     console_cmd = f"incus exec {CONTAINER_NAME} -- su - ubuntu"
