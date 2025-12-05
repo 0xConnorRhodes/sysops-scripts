@@ -63,18 +63,12 @@ def create_ubuntu_container():
     if not result:
         print("Warning: Failed to set password")
 
-    # Show container status
-    print(f"Container '{CONTAINER_NAME}' status:")
-    list_cmd = f"incus list {CONTAINER_NAME} -c n4"
-    result = run_command(list_cmd, check=True)
-    if result and result.stdout:
-        print(result.stdout.strip())
-
-    # Print bootstrap reminder
-    print("\nBootstrap reminder:")
-    print("Now copy and run:")
-    print("$HOME/code/scripts/priv/bootstrap/ubuntu-sandbox")
-    print("to bootstrap the system")
+    # Run console command
+    print(f"\nConnecting to console for container '{CONTAINER_NAME}'...")
+    console_cmd = f"incus exec {CONTAINER_NAME} -- su - ubuntu"
+    result = run_command(console_cmd, check=False, capture_output=False)
+    if not result:
+        print("Failed to connect to container console")
 
     return True
 
