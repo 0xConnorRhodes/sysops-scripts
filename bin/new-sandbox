@@ -1,0 +1,109 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+# ]
+# ///
+"""
+Script Requirements:
+- As a user, I want to create a sandbox container using incus on Linux systems
+- As a user, I want the script to exit gracefully on Darwin (macOS) systems for now
+- As a user, I want to create an Ubuntu container when "ubuntu" is passed as an argument
+- As a user, I want to configure the Ubuntu version and container name through variables
+- As a user, I want the script to set a default password for the Ubuntu container
+- As a user, I want to see the container status after creation
+- As a user, I want to receive a reminder message with bootstrap command for Ubuntu
+"""
+
+import sys
+import platform
+import subprocess
+
+# Configuration variables
+UBUNTU_VERSION = "ubuntu/questing"
+CONTAINER_NAME = "ubox"
+
+def run_command(command, check=True, capture_output=True):
+    """Run a shell command and handle errors."""
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,
+            check=check,
+            capture_output=capture_output,
+            text=True
+        )
+        return result
+    except subprocess.CalledProcessError as e:
+        print(f"Error running command: {command}")
+        print(f"Error: {e}")
+        if e.stdout:
+            print(f"STDOUT: {e.stdout}")
+        if e.stderr:
+            print(f"STDERR: {e.stderr}")
+        return None
+
+def create_ubuntu_container():
+    """Create and configure an Ubuntu sandbox container."""
+    print(f"Creating Ubuntu container '{CONTAINER_NAME}' with version '{UBUNTU_VERSION}'...")
+
+    # Launch the Ubuntu container
+    launch_cmd = f"incus launch images:{UBUNTU_VERSION} {CONTAINER_NAME}"
+    result = run_command(launch_cmd, check=True)
+    if not result:
+        print("Failed to launch Ubuntu container")
+        return False
+
+    print("Ubuntu container launched successfully")
+
+    # Set the password for the ubuntu user
+    print("Setting Ubuntu user password...")
+    passwd_cmd = f'incus exec {CONTAINER_NAME} -- bash -c \'echo "ubuntu:password" | chpasswd\''
+    result = run_command(passwd_cmd, check=True)
+    if not result:
+        print("Warning: Failed to set password")
+
+    # Show container status
+    print(f"Container '{CONTAINER_NAME}' status:")
+    list_cmd = f"incus list {CONTAINER_NAME} -c n4"
+    result = run_command(list_cmd, check=True)
+    if result and result.stdout:
+        print(result.stdout.strip())
+
+    # Print bootstrap reminder
+    print("\nBootstrap reminder:")
+    print("Now copy and run:")
+    print("$HOME/code/scripts/priv/bootstrap/ubuntu-sandbox")
+    print("to bootstrap the system")
+
+    return True
+
+def main():
+    """Main script function."""
+    # Check platform
+    if platform.system() == "Darwin":
+        print("Darwin (macOS) detected. This script currently only supports Linux.")
+        print("Darwin support will be added in a future version.")
+        sys.exit(0)
+    elif platform.system() != "Linux":
+        print(f"Unsupported platform: {platform.system()}")
+        sys.exit(1)
+
+    # Check arguments
+    if len(sys.argv) != 2:
+        print("Usage: create-sandbox <container-type>")
+        print("Supported container types: ubuntu")
+        sys.exit(1)
+
+    container_type = sys.argv[1].lower()
+
+    if container_type == "ubuntu":
+        success = create_ubuntu_container()
+        sys.exit(0 if success else 1)
+    else:
+        print(f"Unsupported container type: {container_type}")
+        print("Supported container types: ubuntu")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
