@@ -21,4 +21,6 @@ case "$filename" in
 esac
 
 echo "Recording to: $filename"
+# Set WAYLAND_DISPLAY for Wayland sessions
+export WAYLAND_DISPLAY=wayland-0
 gpu-screen-recorder -w screen -f 30 -a default_output -cursor no -o "$filename"
