@@ -1,0 +1,105 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
+"""
+Script Requirements:
+- As a user, I want to scan `~/code/notes` using `ripgrep` for Markdown files containing the tag `#demo-notes`.
+- As a user, I want to copy these tagged files to `/home/connor/code/demo-notes-connor-engineer/source`, overwriting existing ones.
+- As a user, I want to delete any Markdown file in the destination directory (except `index.md`) if it is not currently tagged with `#demo-notes` in the source.
+- As a user, I want to remove the `build/html` directory to ensure a clean state.
+- As a user, I want to execute the Sphinx build command via `uv` to regenerate the static site.
+"""
+
+import shutil
+import subprocess
+import os
+from pathlib import Path
+
+# Configuration
+SOURCE_NOTES_DIR = Path("~/code/notes").expanduser()
+PROJECT_ROOT = Path("/home/connor/code/demo-notes-connor-engineer")
+DEST_SOURCE_DIR = PROJECT_ROOT / "source"
+BUILD_HTML_DIR = PROJECT_ROOT / "build" / "html"
+
+TARGET_TAG = "#demo-notes"
+
+
+def get_tagged_files(directory: Path, tag: str) -> list[Path]:
+    try:
+        # -l lists filenames with matches, -t md restricts to markdown
+        result = subprocess.run(
+            ["rg", "-l", tag, str(directory), "-g", "*.md"],
+            capture_output=True,
+            text=True,
+            check=False 
+        )
+        if result.returncode == 0:
+            return [Path(p) for p in result.stdout.strip().splitlines()]
+        return []
+    except FileNotFoundError:
+        print("Error: ripgrep (rg) not found in PATH.")
+        exit(1)
+
+
+def main():
+    if not DEST_SOURCE_DIR.exists():
+        os.makedirs(DEST_SOURCE_DIR)
+
+    # 1. Identify Valid Files (Tag: #demo-notes)
+    # We only need to scan once. These files are valid for copying AND keeping.
+    print(f"🔍 Scanning {SOURCE_NOTES_DIR} for files with tag '{TARGET_TAG}'...")
+    tagged_source_files = get_tagged_files(SOURCE_NOTES_DIR, TARGET_TAG)
+    print(f"📝 Found {len(tagged_source_files)} tagged files")
+    
+    # 2. Copy Files
+    print(f"📋 Copying {len(tagged_source_files)} files to {DEST_SOURCE_DIR}...")
+    for src_file in tagged_source_files:
+        shutil.copy2(src_file, DEST_SOURCE_DIR / src_file.name)
+        print(f"  ✓ {src_file.name}")
+
+    # 3. Prune Files
+    # Create a set of filenames that SHOULD exist in the destination
+    valid_filenames = {p.name for p in tagged_source_files}
+
+    dest_files = list(DEST_SOURCE_DIR.glob("*.md"))
+    files_removed = 0
+
+    for dest_file in dest_files:
+        if dest_file.name == "index.md":
+            continue
+
+        # If the destination file isn't in our current list of tagged files, delete it
+        if dest_file.name not in valid_filenames:
+            dest_file.unlink()
+            files_removed += 1
+            print(f"  🗑️  Removed {dest_file.name}")
+
+    if files_removed > 0:
+        print(f"🧹 Removed {files_removed} untagged files")
+    else:
+        print("✅ No files needed pruning")
+
+    # 4. Rebuild Static Site
+    print("🏗️  Building static site with Sphinx...")
+    try:
+        # Use just build to ensure project dependencies are used (it also cleans)
+        env = os.environ.copy()
+        env.pop("VIRTUAL_ENV", None)  # Remove VIRTUAL_ENV to avoid conflicts
+        subprocess.run(
+            ["just", "build"],
+            cwd=PROJECT_ROOT,
+            check=True,
+            env=env
+        )
+        print("✅ Sphinx build completed successfully!")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Error: Sphinx build failed with exit code {e.returncode}")
+        exit(1)
+    except FileNotFoundError:
+        print("❌ Error: 'just' command not found. Please install just.")
+        exit(1)
+
+if __name__ == "__main__":
+    main()
