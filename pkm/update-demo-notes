@@ -13,6 +13,7 @@ Script Requirements:
 - As a user, I want to execute the Sphinx build command via `uv` to regenerate the static site.
 """
 
+import re
 import shutil
 import subprocess
 import os
@@ -57,7 +58,9 @@ def main():
     # 2. Copy Files and Clean #demo-notes Tag
     print(f"📋 Copying {len(tagged_source_files)} files to {DEST_SOURCE_DIR}...")
     for src_file in tagged_source_files:
-        dest_file = DEST_SOURCE_DIR / src_file.name
+        # Transform filename: replace spaces with hyphens
+        dest_filename = src_file.name.replace(' ', '-')
+        dest_file = DEST_SOURCE_DIR / dest_filename
         shutil.copy2(src_file, dest_file)
 
         # Remove #demo-notes tag from the destination file
@@ -65,21 +68,24 @@ def main():
             with open(dest_file, 'r', encoding='utf-8') as f:
                 content = f.read()
 
-            # Remove #demo-notes tag (case-sensitive, whole line)
+            # Remove all hashtag tags (case-sensitive, whole line)
             lines = content.split('\n')
-            cleaned_lines = [line for line in lines if line.strip() != '#demo-notes']
+            cleaned_lines = [line for line in lines if not re.match(r'^\s*#[\w-]+\s*$', line.strip())]
             cleaned_content = '\n'.join(cleaned_lines)
 
             with open(dest_file, 'w', encoding='utf-8') as f:
                 f.write(cleaned_content)
 
-            print(f"  ✓ {src_file.name} (tag removed)")
+            if src_file.name != dest_filename:
+                print(f"  ✓ {src_file.name} -> {dest_filename} (hashtags removed)")
+            else:
+                print(f"  ✓ {src_file.name} (hashtags removed)")
         except Exception as e:
-            print(f"  ⚠️  {src_file.name} copied but tag removal failed: {e}")
+            print(f"  ⚠️  {src_file.name} copied but hashtag removal failed: {e}")
 
     # 3. Prune Files
-    # Create a set of filenames that SHOULD exist in the destination
-    valid_filenames = {p.name for p in tagged_source_files}
+    # Create a set of filenames that SHOULD exist in the destination (with spaces replaced by hyphens)
+    valid_filenames = {p.name.replace(' ', '-') for p in tagged_source_files}
 
     dest_files = list(DEST_SOURCE_DIR.glob("*.md"))
     files_removed = 0
