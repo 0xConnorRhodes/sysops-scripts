@@ -32,6 +32,7 @@ def run_additional_scripts():
         "update-new-note-titles",
         "process-evergreen-drafts",
         "link-notes",
+        "update-demo-notes",
     ]
 
     script_dir = Path.home() / "code" / "scripts" / "pkm"
