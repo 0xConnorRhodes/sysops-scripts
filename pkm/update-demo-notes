@@ -7,6 +7,7 @@
 Script Requirements:
 - As a user, I want to scan `~/code/notes` using `ripgrep` for Markdown files containing the tag `#demo-notes`.
 - As a user, I want to copy these tagged files to `/home/connor/code/demo-notes-connor-engineer/source`, overwriting existing ones.
+- As a user, I want to remove the `#demo-notes` tag from the copied files in the destination directory (not from the source files).
 - As a user, I want to delete any Markdown file in the destination directory (except `index.md`) if it is not currently tagged with `#demo-notes` in the source.
 - As a user, I want to remove the `build/html` directory to ensure a clean state.
 - As a user, I want to execute the Sphinx build command via `uv` to regenerate the static site.
@@ -53,11 +54,28 @@ def main():
     tagged_source_files = get_tagged_files(SOURCE_NOTES_DIR, TARGET_TAG)
     print(f"📝 Found {len(tagged_source_files)} tagged files")
     
-    # 2. Copy Files
+    # 2. Copy Files and Clean #demo-notes Tag
     print(f"📋 Copying {len(tagged_source_files)} files to {DEST_SOURCE_DIR}...")
     for src_file in tagged_source_files:
-        shutil.copy2(src_file, DEST_SOURCE_DIR / src_file.name)
-        print(f"  ✓ {src_file.name}")
+        dest_file = DEST_SOURCE_DIR / src_file.name
+        shutil.copy2(src_file, dest_file)
+
+        # Remove #demo-notes tag from the destination file
+        try:
+            with open(dest_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            # Remove #demo-notes tag (case-sensitive, whole line)
+            lines = content.split('\n')
+            cleaned_lines = [line for line in lines if line.strip() != '#demo-notes']
+            cleaned_content = '\n'.join(cleaned_lines)
+
+            with open(dest_file, 'w', encoding='utf-8') as f:
+                f.write(cleaned_content)
+
+            print(f"  ✓ {src_file.name} (tag removed)")
+        except Exception as e:
+            print(f"  ⚠️  {src_file.name} copied but tag removal failed: {e}")
 
     # 3. Prune Files
     # Create a set of filenames that SHOULD exist in the destination
