@@ -53,9 +53,33 @@ def build_crop_filter(args: argparse.Namespace, width: int, height: int) -> str:
 
     return f"crop={new_width}:{new_height}:{args.left}:{args.top}"
 
+def process_single_file(input_file: Path, args: argparse.Namespace, output_dir: Path):
+    """Process a single video file with cropping."""
+    width, height = get_video_dimensions(input_file)
+    crop_filter = build_crop_filter(args, width, height)
+
+    output_file = output_dir / input_file.name
+
+    cmd = [
+        "ffmpeg",
+        "-i", str(input_file),
+        "-c:v", args.codec,    # Re-encode video with specified codec
+        "-crf", str(args.crf), # Set quality
+        "-c:a", "copy",        # Copy audio without re-encoding
+        "-vf", crop_filter,    # Apply crop filter
+        "-y",                  # Overwrite output if exists
+        str(output_file)
+    ]
+
+    print(f"Processing '{input_file}' ({width}x{height})...")
+    print(f"Cropping filter: {crop_filter}")
+    print(f"Using codec: {args.codec} (CRF: {args.crf})")
+    subprocess.run(cmd, check=True)
+    print(f"Success: Output saved to '{output_file}'")
+
 def main():
     parser = argparse.ArgumentParser(description="Crop video with re-encoding.")
-    parser.add_argument("input_file", type=Path, help="Path to input video file")
+    parser.add_argument("input_file", type=str, help="Path to input video file or '.' for all mp4 files in directory")
     parser.add_argument("-l", "--left", type=int, default=0, help="Pixels to crop from left")
     parser.add_argument("-r", "--right", type=int, default=0, help="Pixels to crop from right")
     parser.add_argument("-t", "--top", type=int, default=0, help="Pixels to crop from top")
@@ -65,37 +89,51 @@ def main():
 
     args = parser.parse_args()
 
-    if not args.input_file.exists():
-        print(f"Error: File '{args.input_file}' not found.")
-        sys.exit(1)
-
     if args.left == 0 and args.right == 0 and args.top == 0 and args.bottom == 0:
         print("Error: No crop values specified.")
         sys.exit(1)
 
     check_ffmpeg_installed()
 
-    width, height = get_video_dimensions(args.input_file)
-    crop_filter = build_crop_filter(args, width, height)
+    # Check if input is "." for processing all mp4 files
+    if args.input_file == ".":
+        # Find all mp4 files in current directory
+        current_dir = Path.cwd()
+        mp4_files = list(current_dir.glob("*.mp4"))
 
-    output_file = args.input_file.with_stem(f"{args.input_file.stem}_cropped")
+        if not mp4_files:
+            print("Error: No mp4 files found in current directory.")
+            sys.exit(1)
 
-    cmd = [
-        "ffmpeg",
-        "-i", str(args.input_file),
-        "-c:v", args.codec,    # Re-encode video with specified codec
-        "-crf", str(args.crf), # Set quality
-        "-c:a", "copy",        # Copy audio without re-encoding
-        "-vf", crop_filter,    # Apply crop filter
-        "-y",                  # Overwrite output if exists
-        str(output_file)
-    ]
+        print(f"Found {len(mp4_files)} mp4 file(s):")
+        for file in mp4_files:
+            print(f"  - {file.name}")
 
-    print(f"Processing '{args.input_file}' ({width}x{height})...")
-    print(f"Cropping filter: {crop_filter}")
-    print(f"Using codec: {args.codec} (CRF: {args.crf})")
-    subprocess.run(cmd, check=True)
-    print(f"Success: Output saved to '{output_file}'")
+        # Prompt user for confirmation
+        response = input("\nProcess all files? (y/N): ").strip().lower()
+        if response not in ['y', 'yes']:
+            print("Operation cancelled.")
+            sys.exit(0)
+
+        # Create output directory
+        output_dir = current_dir / "cropped"
+        output_dir.mkdir(exist_ok=True)
+
+        # Process all files
+        for input_file in mp4_files:
+            process_single_file(input_file, args, output_dir)
+
+        print(f"\nAll files processed. Output saved to '{output_dir}' directory.")
+    else:
+        # Process single file as before
+        input_file = Path(args.input_file)
+        if not input_file.exists():
+            print(f"Error: File '{input_file}' not found.")
+            sys.exit(1)
+
+        output_file = input_file.with_stem(f"{input_file.stem}_cropped")
+        output_dir = output_file.parent
+        process_single_file(input_file, args, output_dir)
 
 if __name__ == "__main__":
     main()
