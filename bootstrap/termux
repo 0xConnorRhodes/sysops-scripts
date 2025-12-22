@@ -17,7 +17,6 @@ pkg add -y \
         curl \
         fd \
         fzf \
-        mosh \
         rsync \
         ripgrep \
 	zoxide \
