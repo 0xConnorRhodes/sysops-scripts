@@ -12,7 +12,6 @@ pkg add -y \
 	chezmoi \
 	git \
 	termux-api \
-	ruby \
         nnn \
         aria2 \
         curl \
@@ -21,19 +20,11 @@ pkg add -y \
         mosh \
         rsync \
         ripgrep \
-        vim \
 	zoxide \
 	fish \
         lf \
-        uv \
         screen \
         neovim
-
-#python -m pip install \
-#	ipython
-
-gem install \
-	highline
 
 rm /data/data/com.termux/files/usr/etc/motd
 
@@ -45,7 +36,6 @@ chezmoi init --apply https://github.com/0xConnorRhodes/termux-dotfiles.git
 mkdir $HOME/code
 git clone 'https://github.com/0xConnorRhodes/sysops-scripts.git' $HOME/code/scripts
 git clone 'https://github.com/0xConnorRhodes/ruby-modules.git' $HOME/code/ruby-modules
-git clone 'https://github.com/0xConnorRhodes/food-log.git' $HOME/code/food-log
 
 sed -i 's|url = https://github.com/|url = git@github.com:|g' $HOME/.local/share/chezmoi/.git/config
 sed -i 's|url = https://github.com/|url = git@github.com:|g' $HOME/code/scripts/.git/config
