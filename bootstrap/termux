@@ -12,6 +12,7 @@ pkg add -y \
 	chezmoi \
 	git \
 	termux-api \
+        python3 \
         nnn \
         aria2 \
         curl \
