@@ -27,6 +27,9 @@ pkg add -y \
         et \
         neovim
 
+pip install \
+  pyaml
+
 rm /data/data/com.termux/files/usr/etc/motd
 
 termux-setup-storage
@@ -45,3 +48,4 @@ sed -i 's|url = https://github.com/|url = git@github.com:|g' $HOME/code/food-log
 
 echo ""
 echo 'Restart and run `sage` to set age key'
+echo 'Then run bootstrap-stage-2'
