@@ -3,8 +3,6 @@
 
 require 'dotenv/load'
 Dotenv.load(File.join(File.dirname(__FILE__), '.env'))
-require_relative '../lib/ruby/upload_zattachments'
-# require_relative 'lib/ruby/upload_nats'
 
 $notes_path = File.expand_path('~/code/notes')
 
@@ -12,9 +10,6 @@ unless system('curl -s --connect-timeout 2 --max-time 3 http://example.com > /de
   puts "No internet connection"
   exit
 end
-
-# upload_zattachments
-# upload_nats
 
 Dir.chdir($notes_path) do
   system('git add .')
