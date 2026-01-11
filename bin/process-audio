@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""
+Audio processing script that:
+1. Finds all mp3 files in current working directory
+2. Runs unsilence to remove silence
+3. Applies volume reduction with ffmpeg
+"""
+
+import os
+import glob
+import subprocess
+from pathlib import Path
+
+VOL_ADJUST = 0.07
+
+def run_command(command, description):
+    """Run a shell command with visible output"""
+    print(f"\n=== {description} ===")
+    print(f"Running: {command}")
+
+    try:
+        result = subprocess.run(command, shell=True, check=True)
+        print(f"✓ Completed: {description}")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"✗ Error in {description}: {e}")
+        return False
+
+
+def main():
+    cwd = os.getcwd()
+    print(f"Working in directory: {cwd}")
+
+    print("\n=== Finding MP3 files ===")
+    mp3_files = glob.glob("*.mp3")
+
+    if not mp3_files:
+        print("No MP3 files found in current directory!")
+        return
+
+    print(f"Found {len(mp3_files)} MP3 files:")
+    for file in mp3_files:
+        print(f"  - {file}")
+
+    print("\n=== Creating directories ===")
+    processed_dir = Path("processed")
+    unsilenced_dir = processed_dir / "unsilenced"
+    unsilenced_and_lowvol_dir = processed_dir / "unsilenced_and_lowvol"
+
+    processed_dir.mkdir(exist_ok=True)
+    print(f"✓ Created/verified: {processed_dir}")
+    unsilenced_dir.mkdir(exist_ok=True)
+    print(f"✓ Created/verified: {unsilenced_dir}")
+    unsilenced_and_lowvol_dir.mkdir(exist_ok=True)
+    print(f"✓ Created/verified: {unsilenced_and_lowvol_dir}")
+
+    print(f"\n=== Processing {len(mp3_files)} files with unsilence ===")
+    successful_unsilenced = []
+
+    for mp3_file in mp3_files:
+        output_file = unsilenced_dir / mp3_file
+        command = f'unsilence -y -ao "{mp3_file}" "{output_file}"'
+
+        if run_command(command, f"Unsilencing {mp3_file}"):
+            successful_unsilenced.append(output_file)
+        else:
+            print(f"⚠️ Failed {mp3_file} due to unsilence error")
+            exit(1)
+
+    print(f"\n=== Finding processed files in {unsilenced_dir} ===")
+    unsilenced_mp3s = list(unsilenced_dir.glob("*.mp3"))
+
+    if not unsilenced_mp3s:
+        print("No MP3 files found in unsilenced directory!")
+        return
+
+    print(f"Found {len(unsilenced_mp3s)} unsilenced MP3 files:")
+    for file in unsilenced_mp3s:
+        print(f"  - {file.name}")
+
+    print(f"\n=== Processing {len(unsilenced_mp3s)} files with ffmpeg (volume reduction) ===")
+
+    for mp3_file in unsilenced_mp3s:
+        output_file = unsilenced_and_lowvol_dir / mp3_file.name
+        command = f'ffmpeg -i "{mp3_file}" -filter:a volume={VOL_ADJUST} "{output_file}"'
+
+        run_command(command, f"Reducing volume for {mp3_file.name}")
+
+    print("\n=== Processing Complete ===")
+    print(f"Original files: {len(mp3_files)}")
+    print(f"Successfully unsilenced: {len(successful_unsilenced)}")
+    print(f"Final processed files in: {unsilenced_and_lowvol_dir}")
+
+
+if __name__ == "__main__":
+    main()
