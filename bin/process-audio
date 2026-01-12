@@ -11,7 +11,7 @@ import glob
 import subprocess
 from pathlib import Path
 
-VOL_ADJUST = 0.07
+VOL_ADJUST = 0.06
 
 def run_command(command, description):
     """Run a shell command with visible output"""
