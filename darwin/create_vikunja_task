@@ -1,0 +1,37 @@
+#!/Users/connor.rhodes/.nix-profile/bin/uv run --script
+
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "httpx>=0.20.0",
+#     "markdown-it-py>=3.0.0",
+#     "mdit-py-plugins>=0.4.0",
+# ]
+# ///
+
+# Required parameters:
+# @raycast.schemaVersion 1
+# @raycast.title Create Task
+# @raycast.mode compact
+
+# Optional parameters:
+# @raycast.argument1 { "type": "text", "placeholder": "Task description" }
+# @raycast.mode silent
+
+import sys
+import subprocess
+sys.path.insert(0, "/Users/connor.rhodes/code/vikunja-dev/module")
+
+from vikunja import VikunjaClient
+
+# Grab argument
+if len(sys.argv) < 2:
+    sys.exit(0)
+task_content = sys.argv[1]
+
+vik = VikunjaClient()
+task = vik.create_task(title=task_content)
+
+# Open the task URL in browser
+subprocess.run(['open', task['url']])
+print(f"✅ Created: {task_content}")
