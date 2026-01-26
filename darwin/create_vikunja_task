@@ -12,7 +12,6 @@
 # Required parameters:
 # @raycast.schemaVersion 1
 # @raycast.title Create Task
-# @raycast.mode silent
 
 # Optional parameters:
 # @raycast.argument1 { "type": "text", "placeholder": "Task description" }
@@ -33,5 +32,5 @@ vik = VikunjaClient()
 task = vik.create_task(title=task_content)
 
 # Open the task URL in browser
-subprocess.run(['open', task['url']])
+subprocess.run(['open', task.url])
 print(f"✅ Created: {task_content}")
