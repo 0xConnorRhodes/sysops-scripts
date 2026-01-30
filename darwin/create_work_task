@@ -9,16 +9,12 @@
 # ]
 # ///
 
-# Required parameters:
 # @raycast.schemaVersion 1
-# @raycast.title Create Task
-
-# Optional parameters:
+# @raycast.title Create Work Task
 # @raycast.argument1 { "type": "text", "placeholder": "Task description" }
 # @raycast.mode silent
 
 import sys
-import argparse
 import subprocess
 import re
 sys.path.insert(0, "/Users/connor.rhodes/code/vikunja-dev/module")
@@ -37,10 +33,9 @@ def is_url(text: str) -> bool:
     return bool(url_pattern.match(text.strip()))
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--label", help="Label to add to the task")
-parser.add_argument("task_content", help="Task description")
-args = parser.parse_args()
+if len(sys.argv) < 2:
+    sys.exit(0)
+task_content = sys.argv[1]
 
 vik = VikunjaClient()
 
@@ -53,9 +48,8 @@ description = ""
 if clipboard_content and is_url(clipboard_content):
     description = f"[{clipboard_content}]({clipboard_content})"
 
-# Create task with optional label and description
-task = vik.create_task(title=args.task_content, label=args.label, description=description)
+# Create work task with "w" label and optional description
+task = vik.create_task(title=task_content, label="w", description=description)
 
-# Open the task URL in browser
 subprocess.run(['open', task.url])
-print(f"✅ Created: {args.task_content}")
+print(f"✅ Created work task: {task_content}")
