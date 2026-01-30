@@ -1,0 +1,27 @@
+#!/Users/connor.rhodes/.nix-profile/bin/uv run --script
+
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+# ]
+# ///
+
+# Required parameters:
+# @raycast.schemaVersion 1
+# @raycast.title Gemini Query
+
+# Optional parameters:
+# @raycast.argument1 { "type": "text", "placeholder": "Query" }
+# @raycast.mode silent
+
+import sys
+sys.path.insert(0, "/Users/connor.rhodes/code/serial_gemini_web/module")
+from serial_gem import SerialGemini
+
+# Grab argument
+if len(sys.argv) < 2:
+    sys.exit(0)
+query = sys.argv[1]
+
+client = SerialGemini(page_load_delay=0.3, copy_delay=0.01,  enter_delay=0.1)
+client.open_gem("base", query)
