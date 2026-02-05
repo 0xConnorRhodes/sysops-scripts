@@ -1,2 +1,39 @@
-#!/bin/sh
-(cd /Users/connor.rhodes/code/vikunja-dev/scripts && uv run generate_tasks_html.py) && open /tmp/todays_tasks.html
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["jinja2", "httpx", "markdown-it-py", "mdit-py-plugins"]
+# ///
+
+from vikunja import VikunjaClient
+from jinja2 import Template
+import pathlib
+import subprocess
+
+
+def main():
+    v = VikunjaClient()
+    tasks = v.get_todays_tasks()
+
+    template = Template("""
+<html>
+<body>
+  <h1>Today's Tasks</h1>
+  <ul>
+  {% for task in tasks %}
+    <li><a href="{{ task.url }}" target="_blank" rel="noopener noreferrer">{{ task.title }}</a></li>
+  {% endfor %}
+  </ul>
+</body>
+</html>
+""")
+
+    html_output = template.render(tasks=tasks)
+    output_path = pathlib.Path("/tmp/todays_tasks.html")
+    output_path.write_text(html_output)
+    print(f"Generated {output_path} with {len(tasks)} tasks")
+    subprocess.run(["open", str(output_path)])
+
+
+if __name__ == "__main__":
+    main()
