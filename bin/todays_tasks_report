@@ -1,0 +1,2 @@
+#!/bin/sh
+(cd /Users/connor.rhodes/code/vikunja-dev/scripts && uv run generate_tasks_html.py) && open /tmp/todays_tasks.html
