@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Audio processing script that:
-1. Finds all supported audio files in current working directory
+Video processing script that:
+1. Finds all supported video files in current working directory
 2. Runs unsilence to remove silence and apply volume reduction in a single step
 """
 
@@ -10,10 +10,9 @@ import glob
 import subprocess
 from pathlib import Path
 
-# Supported audio file extensions (case insensitive)
-SUPPORTED_EXTENSIONS = ['mp3', 'm4a']
+SUPPORTED_EXTENSIONS = ['mp4', 'mov', 'mkv', 'avi', 'webm']
 
-VOL_ADJUST = 0.06
+VOL_ADJUST = 0.07
 
 def run_command(command, description):
     """Run a shell command with visible output"""
@@ -33,22 +32,21 @@ def main():
     cwd = os.getcwd()
     print(f"Working in directory: {cwd}")
 
-    print(f"\n=== Finding audio files ({', '.join(ext.upper() for ext in SUPPORTED_EXTENSIONS)}) ===")
-    audio_files = []
+    print(f"\n=== Finding video files ({', '.join(ext.upper() for ext in SUPPORTED_EXTENSIONS)}) ===")
+    video_files = []
     for ext in SUPPORTED_EXTENSIONS:
-        # Find files with both lowercase and uppercase extensions
-        audio_files.extend(glob.glob(f"*.{ext}"))
-        audio_files.extend(glob.glob(f"*.{ext.upper()}"))
+        video_files.extend(glob.glob(f"*.{ext}"))
+        video_files.extend(glob.glob(f"*.{ext.upper()}"))
 
     # Remove duplicates while preserving order
-    audio_files = list(dict.fromkeys(audio_files))
+    video_files = list(dict.fromkeys(video_files))
 
-    if not audio_files:
-        print(f"No audio files found in current directory! (Supported: {', '.join(SUPPORTED_EXTENSIONS)})")
+    if not video_files:
+        print(f"No video files found in current directory! (Supported: {', '.join(SUPPORTED_EXTENSIONS)})")
         return
 
-    print(f"Found {len(audio_files)} audio files:")
-    for file in audio_files:
+    print(f"Found {len(video_files)} video files:")
+    for file in video_files:
         print(f"  - {file}")
 
     print("\n=== Creating directories ===")
@@ -60,21 +58,22 @@ def main():
     unsilenced_dir.mkdir(exist_ok=True)
     print(f"✓ Created/verified: {unsilenced_dir}")
 
-    print(f"\n=== Processing {len(audio_files)} files with unsilence ===")
+    print(f"\n=== Processing {len(video_files)} files with unsilence ===")
     successful_unsilenced = []
 
-    for audio_file in audio_files:
-        output_file = unsilenced_dir / audio_file
-        command = f'unsilence -y -ao -av {VOL_ADJUST} "{audio_file}" "{output_file}"'
+    for video_file in video_files:
+        output_file = unsilenced_dir / video_file
+        # Note: No -ao flag to preserve video track
+        command = f'unsilence -y -av {VOL_ADJUST} "{video_file}" "{output_file}"'
 
-        if run_command(command, f"Unsilencing {audio_file}"):
+        if run_command(command, f"Unsilencing {video_file}"):
             successful_unsilenced.append(output_file)
         else:
-            print(f"⚠️ Failed {audio_file} due to unsilence error")
+            print(f"⚠️ Failed {video_file} due to unsilence error")
             exit(1)
 
     print("\n=== Processing Complete ===")
-    print(f"Original files: {len(audio_files)}")
+    print(f"Original files: {len(video_files)}")
     print(f"Successfully processed: {len(successful_unsilenced)}")
     print(f"Processed files in: {unsilenced_dir}")
 
