@@ -7,7 +7,7 @@
 
 # @raycast.schemaVersion 1
 # @raycast.title Task Report
-# @raycast.argument1 { "type": "text", "placeholder": "Days ahead (default: 0)" }
+# @raycast.argument1 { "type": "text", "placeholder": "Days ahead (default: 0)", "optional": true }
 # @raycast.mode compact
 
 import sys
@@ -21,7 +21,7 @@ import subprocess
 
 def main():
     days_ahead = 0
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and sys.argv[1].strip():
         try:
             days_ahead = int(sys.argv[1])
         except ValueError:
