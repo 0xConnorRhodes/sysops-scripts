@@ -9,6 +9,9 @@
 # @raycast.schemaVersion 1
 
 
+# Clean up any dead screen sessions before checking
+screen -wipe
+
 if screen -ls | grep -q '\.caf'; then
     # turn it off
     screen -S caf -X quit
