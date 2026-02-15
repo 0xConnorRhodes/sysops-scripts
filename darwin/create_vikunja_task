@@ -21,6 +21,8 @@ import sys
 import argparse
 import subprocess
 import re
+from datetime import date, timedelta, datetime
+import zoneinfo
 sys.path.insert(0, "/Users/connor.rhodes/code/vikunja-dev/module")
 
 from vikunja import VikunjaClient
@@ -35,6 +37,24 @@ def is_url(text: str) -> bool:
         re.IGNORECASE
     )
     return bool(url_pattern.match(text.strip()))
+
+
+def parse_start_date(task_content: str) -> tuple[str, str | None]:
+    """
+    Parse a +N pattern from task content and return (cleaned_title, start_date).
+    Returns (original_content, None) if no pattern found.
+    """
+    pattern = r'\s*\+(\d+)\s*$'
+    match = re.search(pattern, task_content)
+    if match:
+        days = int(match.group(1))
+        cleaned_title = re.sub(pattern, '', task_content).strip()
+        # Use local timezone to avoid date offset issues
+        local_tz = zoneinfo.ZoneInfo('America/Chicago')
+        target_date = datetime.now(local_tz).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=days)
+        start_date = target_date.isoformat()
+        return cleaned_title, start_date
+    return task_content, None
 
 
 parser = argparse.ArgumentParser()
@@ -53,9 +73,17 @@ description = ""
 if clipboard_content and is_url(clipboard_content):
     description = f"[{clipboard_content}]({clipboard_content})"
 
-# Create task with optional label and description
-task = vik.create_task(title=args.task_content, label=args.label, description=description)
+# Parse task content for start date pattern
+cleaned_title, start_date = parse_start_date(args.task_content)
+
+# Create task with optional label, description, and start date
+task = vik.create_task(
+    title=cleaned_title,
+    label=args.label,
+    description=description,
+    start_date=start_date  # Will be None if no pattern found
+)
 
 # Open the task URL in browser
 subprocess.run(['open', task.url])
-print(f"✅ Created: {args.task_content}")
+print(f"✅ Created: {cleaned_title}")
