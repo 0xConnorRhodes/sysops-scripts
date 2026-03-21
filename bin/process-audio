@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 # Supported audio file extensions (case insensitive)
-SUPPORTED_EXTENSIONS = ['mp3', 'm4a']
+SUPPORTED_EXTENSIONS = ['mp3', 'm4a', 'm4b']
 
 VOL_ADJUST = 0.06
 
