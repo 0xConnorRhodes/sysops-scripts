@@ -1,0 +1,58 @@
+#!/bin/bash
+set -e
+
+if [[ $EUID -ne 0 ]]; then
+    echo "This script must be run as root." >&2
+    exit 1
+fi
+
+echo "Updating and upgrading packages..."
+apt-get update && apt-get upgrade -y
+
+read -p "Enter new username: " USERNAME
+
+useradd -m -s /bin/bash "$USERNAME"
+passwd "$USERNAME"
+
+packages=(
+    curl
+    aria2
+    ripgrep
+    unzip
+    zoxide
+    fzf
+    tree
+    jq
+    just
+    openssh-server
+)
+
+echo "Installing packages..."
+for pkg in "${packages[@]}"; do
+    echo "  -> $pkg"
+    apt-get install -y "$pkg"
+done
+
+user_installs=(
+    "curl -fsSL https://claude.ai/install.sh | bash"
+    "curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh"
+)
+
+echo "Installing user-scoped software as '$USERNAME'..."
+for cmd in "${user_installs[@]}"; do
+    echo "  -> $cmd"
+    su - "$USERNAME" -c "$cmd"
+done
+
+echo "Configuring SSH..."
+
+sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+systemctl enable --now ssh
+systemctl restart ssh
+
+echo "Done. New user '$USERNAME' created."
+echo "SSH is running with password authentication enabled."
+echo ""
+echo "IPv4 address (eth0):"
+ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'
