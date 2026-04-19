@@ -9,4 +9,4 @@
 #
 # @raycast.schemaVersion 1
 
-wezterm cli spawn --new-window --cwd "/Users/connor.rhodes/code/clip-dispatch" -- uv run main.py > /dev/null
+wezterm cli spawn --new-window --cwd "/Users/connor.rhodes/code/clip-dispatch" -- bash -c 'uv run main.py || { echo "Press Enter to close..."; read; }' > /dev/null

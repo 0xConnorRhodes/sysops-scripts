@@ -9,8 +9,11 @@
 # @raycast.schemaVersion 1
 
 
-# Clean up any dead screen sessions before checking
-screen -wipe
+screen -wipe 2>/dev/null
+
+if screen -ls 2>/dev/null | grep -q '\.caf.*(Remote or dead)'; then
+    rm -f "${HOME}/.screen/"*.caf 2>/dev/null
+fi
 
 if screen -ls | grep -q '\.caf'; then
     # turn it off
