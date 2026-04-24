@@ -1,0 +1,12 @@
+#!/bin/zsh
+#
+# @raycast.title Edge Crop
+# @raycast.author Connor Rhodes
+# @raycast.description Run Edge Crop
+# @raycast.mode compact
+#
+# @raycast.schemaVersion 1
+
+export TCL_LIBRARY="/Users/connor.rhodes/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/tcl8.6"
+cd /Users/connor.rhodes/code/tools/edge_crop && nohup uv run main.py &>/dev/null &
+sleep 1 && osascript -e 'tell application "System Events" to set frontmost of first process whose name contains "Python" to true' &
