@@ -7,6 +7,7 @@
 #
 # @raycast.schemaVersion 1
 
-export TCL_LIBRARY="/Users/connor.rhodes/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/tcl8.6"
+PYTHON_PREFIX="$(cd $HOME/code/tools/edge_crop && uv run python -c 'import sys, os; print(os.path.dirname(os.path.dirname(os.path.realpath(sys.executable))))')"
+export TCL_LIBRARY="$PYTHON_PREFIX/lib/tcl8.6"
 cd /Users/connor.rhodes/code/tools/edge_crop && nohup uv run main.py &>/dev/null &
 sleep 1 && osascript -e 'tell application "System Events" to set frontmost of first process whose name contains "Python" to true' &
