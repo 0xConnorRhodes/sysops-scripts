@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# make remote for local repo on forgejo
+
+set -euo pipefail
+
+repo_name=$(basename "$(pwd)")
+
+if git remote get-url origin &>/dev/null; then
+  echo "origin remote already exists: $(git remote get-url origin)"
+  exit 1
+fi
+
+fj --host git.connorrhodes.com repo create --private "$repo_name"
+git remote add origin "forgejo@git.connorrhodes.com:connor/${repo_name}"
+echo "created repo and added remote: connor/${repo_name}"
