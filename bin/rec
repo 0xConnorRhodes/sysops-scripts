@@ -20,6 +20,20 @@ case "$filename" in
     *) filename="${filename}.mp4" ;;
 esac
 
+# When invoked without a display (ssh / gnu screen), attach to the running
+# X session so we can record it.
+if [ -z "${DISPLAY:-}" ]; then
+    xorg_pid=$(pgrep -x Xorg | head -1)
+    if [ -z "$xorg_pid" ]; then
+        echo "Error: no running X session found" >&2
+        exit 1
+    fi
+    export DISPLAY=$(tr '\0' ' ' < /proc/$xorg_pid/cmdline | grep -oE ':[0-9]+' | head -1)
+    export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
+    export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    export PULSE_SERVER="${PULSE_SERVER:-unix:/run/user/$(id -u)/pulse/native}"
+fi
+
 echo "Recording to: $filename"
 
 # xrdp/remote sessions are software-rendered (llvmpipe); gpu-screen-recorder
