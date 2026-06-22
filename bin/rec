@@ -42,11 +42,17 @@ if grep -qa "xorgxrdp" /proc/$(pgrep -f "Xorg ${DISPLAY%%.*}" | head -1)/cmdline
     resolution=$(xrandr 2>/dev/null | grep ' connected' | head -1 | grep -oE '[0-9]+x[0-9]+' | head -1)
     # capture the system output monitor (matches gsr's default_output) via pipewire-pulse
     default_sink=$(pw-dump 2>/dev/null | grep '"default.audio.sink"' | grep -oE '"name": "[^"]*"' | sed 's/"name": "//;s/"//')
-    audio_args=""
-    [ -n "$default_sink" ] && audio_args="-f pulse -i ${default_sink}.monitor -c:a aac"
-    ffmpeg -f x11grab -framerate 30 -video_size "${resolution:-1920x1080}" -i "$DISPLAY" \
-        $audio_args \
-        -c:v libx264 -preset fast -pix_fmt yuv420p "$filename"
+    audio_input=""
+    audio_codec=""
+    [ -n "$default_sink" ] && { audio_input="-f pulse -i ${default_sink}.monitor"; audio_codec="-c:a aac"; }
+    # VAAPI hardware encode (software x264 drops frames); passthrough keeps all captured frames
+    ffmpeg -vaapi_device /dev/dri/renderD128 \
+        -f x11grab -framerate 30 -video_size "${resolution:-1920x1080}" -i "$DISPLAY" \
+        $audio_input \
+        -vf 'format=nv12,hwupload' \
+        -c:v h264_vaapi $audio_codec \
+        -fps_mode passthrough \
+        "$filename"
 else
     export WAYLAND_DISPLAY=wayland-0
     gpu-screen-recorder -w screen -f 30 -a default_output -cursor no -o "$filename"
