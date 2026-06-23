@@ -45,14 +45,25 @@ if grep -qa "xorgxrdp" /proc/$(pgrep -f "Xorg ${DISPLAY%%.*}" | head -1)/cmdline
     audio_input=""
     audio_codec=""
     [ -n "$default_sink" ] && { audio_input="-f pulse -i ${default_sink}.monitor"; audio_codec="-c:a aac"; }
-    # VAAPI hardware encode (software x264 drops frames); re-stamp to constant 30fps so
-    # x11grab's jittery wallclock timestamps don't cause judder / non-monotonic DTS
-    ffmpeg -vaapi_device /dev/dri/renderD128 \
+    # VAAPI hardware encode; re-stamp to constant 30fps to avoid jitter / non-monotonic DTS.
+    # ffmpeg's SIGINT path crashes the VAAPI encoder and corrupts the mp4, so run it
+    # isolated (setsid) and quit cleanly via stdin 'q' on Ctrl+C instead.
+    fifo=$(mktemp -u)
+    mkfifo "$fifo"
+    setsid ffmpeg -vaapi_device /dev/dri/renderD128 \
         -f x11grab -framerate 30 -video_size "${resolution:-1920x1080}" -i "$DISPLAY" \
         $audio_input \
         -vf 'format=nv12,setpts=N/(30*TB),hwupload' \
-        -c:v h264_vaapi $audio_codec \
-        "$filename"
+        -c:v h264_vaapi $audio_codec "$filename" \
+        < "$fifo" &
+    ffmpeg_pid=$!
+    exec 3> "$fifo"
+    trap 'printf "q\n" >&3' INT
+    wait "$ffmpeg_pid" 2>/dev/null
+    wait "$ffmpeg_pid" 2>/dev/null
+    trap - INT
+    exec 3>&-
+    rm -f "$fifo"
 else
     export WAYLAND_DISPLAY=wayland-0
     gpu-screen-recorder -w screen -f 30 -a default_output -cursor no -o "$filename"
