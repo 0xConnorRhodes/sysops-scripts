@@ -1,7 +1,0 @@
-#!/usr/bin/env sh
-# find edit
-
-file="$(fd -t f . | fzf)"
-if [ -n "$file" ]; then
-    nvim "$file"
-fi
